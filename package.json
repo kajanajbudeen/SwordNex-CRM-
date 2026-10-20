@@ -1,0 +1,39 @@
+{
+  "name": "swordnex-ai-crm",
+  "version": "1.0.0",
+  "description": "SwordNex AI CRM - Intelligent, Secure, Multi-Tenant Cloud CRM with AI Sales Automation",
+  "author": "SwordNex Technologies Private Limited",
+  "license": "UNLICENSED",
+  "private": true,
+  "workspaces": [
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "install:all": "npm install && npm --prefix server install && npm --prefix client install",
+    "db:up": "docker compose -f database/docker-compose.yml up -d",
+    "db:down": "docker compose -f database/docker-compose.yml down",
+    "db:push": "npm --prefix server run prisma:generate && npm --prefix server run prisma:push",
+    "db:seed": "npm --prefix server run prisma:seed",
+    "db:studio": "npx --prefix server prisma studio --schema=prisma/schema.prisma",
+    "backend:dev": "npm --prefix server run dev",
+    "backend:build": "npm --prefix server run build",
+    "backend:start": "npm --prefix server start",
+    "backend:test": "npm --prefix server test",
+    "frontend:dev": "npm --prefix client run dev",
+    "frontend:build": "npm --prefix client run build",
+    "frontend:preview": "npm --prefix client run preview",
+    "dev:server": "npm --prefix server run dev",
+    "dev:client": "npm --prefix client run dev",
+    "dev": "npx concurrently \"npm:dev:server\" \"npm:dev:client\"",
+    "build:server": "npm --prefix server run build",
+    "build:client": "npm --prefix client run build",
+    "build": "npm run build:server && npm run build:client",
+    "test:server": "npm --prefix server test",
+    "test": "npm run test:server",
+    "start": "npm --prefix server start"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

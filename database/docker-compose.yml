@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  database:
+    image: postgres:16-alpine
+    container_name: swordnex_database
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgrespassword}
+      POSTGRES_DB: ${POSTGRES_DB:-swordnex_crm}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - swordnex_pgdata:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-swordnex_crm}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  swordnex_pgdata:
+    name: swordnex_pgdata

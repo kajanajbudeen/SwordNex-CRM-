@@ -1,0 +1,90 @@
+version: '3.8'
+
+# ==============================================================================
+# SwordNex AI CRM - Decoupled 3-Tier Multi-Container Architecture
+# 1. Tier 1: Dedicated PostgreSQL 16 Database with Persistence & Healthcheck
+# 2. Tier 2: Dedicated Backend REST API Server (Node.js/Express/TypeScript)
+# 3. Tier 3: Dedicated Frontend Client Single Page App (React/Vite/Nginx)
+# ==============================================================================
+
+networks:
+  crm_internal_network:
+    driver: bridge
+    internal: true # Secure internal network for server <-> database communication
+  crm_public_network:
+    driver: bridge # Public network for user traffic <-> frontend & backend
+
+volumes:
+  swordnex_database_data:
+    name: swordnex_database_data
+
+services:
+  # ----------------------------------------------------------------------------
+  # TIER 1: DATABASE (PostgreSQL 16)
+  # ----------------------------------------------------------------------------
+  database:
+    image: postgres:16-alpine
+    container_name: swordnex_database
+    restart: unless-stopped
+    networks:
+      - crm_internal_network
+      - crm_public_network
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgrespassword}
+      POSTGRES_DB: ${POSTGRES_DB:-swordnex_crm}
+    ports:
+      - "5432:5432"
+    volumes:
+      - swordnex_database_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-swordnex_crm}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ----------------------------------------------------------------------------
+  # TIER 2: BACKEND SERVER (REST API & AI Gateway)
+  # ----------------------------------------------------------------------------
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: swordnex_backend_server
+    restart: unless-stopped
+    networks:
+      - crm_internal_network
+      - crm_public_network
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      PORT: 5000
+      NODE_ENV: production
+      API_PREFIX: /api/v1
+      CLIENT_URL: http://localhost:80
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgrespassword}@database:5432/${POSTGRES_DB:-swordnex_crm}?schema=public
+      JWT_SECRET: super_secure_production_jwt_key_32_characters_minimum
+      JWT_EXPIRES_IN: 1d
+      JWT_REFRESH_SECRET: super_secure_refresh_key_32_chars_minimum
+      JWT_REFRESH_EXPIRES_IN: 7d
+      AI_PROVIDER: mock
+    ports:
+      - "5000:5000"
+
+  # ----------------------------------------------------------------------------
+  # TIER 3: FRONTEND CLIENT (React / Tailwind / Nginx SPA)
+  # ----------------------------------------------------------------------------
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: swordnex_frontend_client
+    restart: unless-stopped
+    networks:
+      - crm_public_network
+    depends_on:
+      - server
+    ports:
+      - "80:80"
