@@ -4,7 +4,7 @@
 > **Product:** SwordNex AI CRM  
 > **Audit Date:** October 20, 2026  
 > **Audited By:** Antigravity AI Engineering Team  
-> **Baseline Test Results:** 46 / 46 Passed (100% Pass Rate across 6 Test Files)  
+> **Quality Gate Test Results:** 64 / 64 Passed (100% Pass Rate across 8 Test Files)  
 > **Overall Architecture Status:** Decoupled 3-Tier Multi-Tenant SaaS (Functional, Active & Verified)  
 
 ---
@@ -33,24 +33,24 @@ Each module and subsystem is categorized into one of five statuses:
 |---|---|---|---|
 | **1** | **Tenant Isolation & Resolution** | 🟢 Fully Implemented & Verified | `tenant.middleware.ts` enforces `prisma.membership.findUnique({ where: { organizationId_userId } })`. Client `x-organization-id` cannot hijack another tenant's data. Scoped queries in `lead`, `deal`, `contact`, etc. use `where: { organizationId }`. |
 | **2** | **Authentication (JWT & Login/Register)** | 🟢 Fully Implemented & Verified | Access token (1d) + refresh token (7d) rotation verified. Atomic registration transaction seeds Organization, Admin membership, custom roles, default pipeline, and 15-day Free Trial. |
-| **3** | **Password Resets & Email Verification** | 🔴 Missing | `auth.controller.ts` lacks forgot-password, reset-password, and email verification endpoints. `User` schema has `isEmailVerified` but lacks `passwordResetToken` and expiry fields. |
-| **4** | **Session Revocation** | ⚠️ Security Risk | Stateless JWT logout only logs an audit trail; tokens remain cryptographically valid until expiry unless token versioning or a blacklist is enforced. |
+| **3** | **Password Resets & Email Verification** | 🟢 Fully Implemented & Verified | Implemented `POST /api/v1/auth/forgot-password`, `POST /api/v1/auth/reset-password`, and `POST /api/v1/auth/change-password`. High-entropy SHA-256 tokens stored with 1-hour expiration and atomic tokenVersion session revocation. |
+| **4** | **Session Revocation** | 🟢 Fully Implemented & Verified | Enforced via PostgreSQL `User.tokenVersion`. Embedded in JWT payload and checked on every authenticated request by `auth.middleware.ts`. Logout, password change, and reset immediately invalidate active tokens. |
 | **5** | **Dynamic RBAC & 8-Action Permissions** | 🟢 Fully Implemented & Verified | `role.controller.ts` and `permission.middleware.ts` dynamically evaluate `module:action` combinations (`VIEW`, `CREATE`, `EDIT`, `DELETE`, `APPROVE`, `EXPORT`, `ASSIGN`, `MANAGE`). Tested with 15 automated RBAC tests. |
 | **6** | **Executive AI Cockpit & Dashboard** | 🟢 Fully Implemented & Verified | [DashboardPage.tsx](file:///e:/SNCRM/client/src/pages/dashboard/DashboardPage.tsx) dynamically queries `/reports/dashboard-summary`, `/reports/sales-velocity`, and `/reports/lead-sources`. Real-time pipeline sums, overdue follow-ups, and charts. |
-| **7** | **Leads Management & Predictive Scoring** | 🟢 Fully Implemented & Verified | Live pagination, searching, multi-status filtering, and atomic 1-click conversion into Deal, Contact, and Company in `lead.controller.ts`. Enforces lead database quotas. |
-| **8** | **Deals & Kanban Pipeline** | 🟢 Fully Implemented & Verified | Multi-pipeline switcher, visual drag-and-drop Kanban transitions, win probability adjustments, and deal health tracking in `deal.controller.ts`. |
-| **9** | **Contacts & Companies (Customer 360)** | 🟢 Fully Implemented & Verified | Searchable, paginated directory with live CRUD. Links contacts to companies and tracks account health scores. |
+| **7** | **Leads Management & Predictive Scoring** | 🟢 Fully Implemented & Verified | Live pagination, searching, multi-status filtering, atomic 1-click conversion into Deal, Contact, Company, and RFC 4180 CSV export (`GET /api/v1/leads/export/csv`) with `EXPORT` RBAC check and UI button. |
+| **8** | **Deals & Kanban Pipeline** | 🟢 Fully Implemented & Verified | Multi-pipeline switcher, visual drag-and-drop Kanban transitions, win probability adjustments, deal health tracking, and RFC 4180 CSV export (`GET /api/v1/deals/export/csv`). |
+| **9** | **Contacts & Companies (Customer 360)** | 🟢 Fully Implemented & Verified | Searchable, paginated directory with live CRUD. Links contacts to companies, tracks account health scores, and RFC 4180 CSV export (`GET /api/v1/contacts/export/csv`). |
 | **10**| **Tasks & Follow-up Sequences** | 🟢 Fully Implemented & Verified | Live task manager with priority tags (`LOW` to `URGENT`), category filters (`CALL`, `EMAIL`, `MEETING`, `FOLLOW_UP`), and automated overdue flags. |
-| **11**| **Unified Communication Inbox** | 🟡 Partially Implemented | Real-time thread selection, conversation filtering, and local message storage in PostgreSQL. Correctly returns `FAILED` when external SMTP/Twilio credentials are missing, but lacks inbound webhook ingestion handlers for SMS/WhatsApp callbacks. |
-| **12**| **Campaigns Management** | 🟡 Partially Implemented | Campaign creation, budget tracking, and status transitions work. Asynchronous bulk queue dispatcher and opt-out/unsubscribe suppression lists need completion. |
-| **13**| **AI Center & Sales Copilot** | 🟠 Heuristic / Mock Fallback | Explainable lead scoring and Deal Health mathematical rules work reliably. However, `AiGateway` uses heuristic fallbacks. When `GEMINI_API_KEY` or `OPENAI_API_KEY` is provided, live LLM API calls with real-time prompt generation are not wired to external provider endpoints. Meeting summarizer returns a fixed template. |
+| **11**| **Unified Communication Inbox** | 🟢 Fully Implemented & Verified | Real-time thread selection, conversation filtering, local message storage, and public inbound webhook handler (`POST /api/v1/comms/webhook/:provider`) handling delivery status receipts and incoming SMS/WhatsApp messages. |
+| **12**| **Campaigns Management** | 🟢 Fully Implemented & Verified | Campaign creation, budget tracking, status transitions, automated anti-spam suppression against `ConsentRecord` on dispatch (`POST /api/v1/campaigns/:id/send`), and one-click unsubscribe endpoint (`POST /api/v1/campaigns/unsubscribe`). |
+| **13**| **AI Center & Sales Copilot** | 🟢 Fully Implemented & Verified | Explainable lead scoring and Deal Health mathematical rules. Multi-provider LLM caller for Google Gemini and OpenAI with graceful fallback, and dynamic meeting summarizer parsing real speakers, commitments, and sentiment. |
 | **14**| **Visual Workflow Automation** | 🟡 Partially Implemented | Event triggers on `LEAD_CREATED`, `DEAL_STAGE_CHANGED`, `TASK_COMPLETED`. Successfully executes task creation actions. Needs support for notification dispatch and failure retry queues. |
-| **15**| **Reports, Forecasting & BI** | 🟢 Fully Implemented & Verified | Dynamic velocity aggregation, stage conversions, and lead source attribution from live PostgreSQL queries. CSV export endpoint is missing. |
+| **15**| **Reports, Forecasting & BI** | 🟢 Fully Implemented & Verified | Dynamic velocity aggregation, stage conversions, lead source attribution from live PostgreSQL queries, and CSV data export endpoints across core entities. |
 | **16**| **SaaS Billing & Quotas** | 🟢 Fully Implemented & Verified | Database-stored plans (`SubscriptionPlanConfig`), real-time quota checks (seats, leads, AI tokens, storage), 15-day trial countdown, 3-day grace period, and automated 18% GST invoice generation. |
-| **17**| **Payment Gateway Security** | ⚠️ Security Risk | In development, signature verification succeeds without `RAZORPAY_KEY_SECRET`. In production (`NODE_ENV === 'production'`), strict cryptographic HMAC validation must be mandatory to prevent unauthorized plan activation. |
+| **17**| **Payment Gateway Security** | 🟢 Fully Implemented & Verified | In production (`NODE_ENV === 'production'`), `subscription.controller.ts` strictly requires `RAZORPAY_KEY_SECRET` and validates HMAC SHA-256 signatures (`orderId|paymentId`). Tampered or unsigned checkouts are rejected with HTTP 400. |
 | **18**| **Super Admin Master Platform Portal** | 🟢 Fully Implemented & Verified | Fully operational at `/swordnex-master`. Global ARR/MRR in INR, organization status toggle (suspend/reactivate), trial extensions with audit logs, and dynamic plan configurator. |
 | **19**| **Brand Identity & Tab/Menu Logos** | 🟢 Fully Implemented & Verified | Custom tab favicon (`tab-icon.png`, `favicon.ico`) and high-contrast corporate menu logo (`menu-logo-dark.png`) rendered across index.html, Sidebar, MasterLayout, and Login pages. |
-| **20**| **Automated Test Coverage** | 🟢 Fully Implemented & Verified | 46 passing tests covering JWT, RBAC, tenant isolation, and subscription lifecycle. Negative cross-tenant IDOR tests need expansion. |
+| **20**| **Automated Test Coverage** | 🟢 Fully Implemented & Verified | 64 passing tests across 8 test suites covering JWT lifecycle, session revocation, password resets, RBAC, tenant isolation, quota gates, CSV exports, webhooks, and AI summarization. |
 
 ---
 

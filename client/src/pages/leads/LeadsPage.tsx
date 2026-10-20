@@ -14,12 +14,14 @@ import {
   Mail,
   Building,
   RefreshCw,
+  Download,
 } from 'lucide-react';
 import { apiClient } from '../../api/client';
 
 export const LeadsPage: React.FC = () => {
   const [leads, setLeads] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isExporting, setIsExporting] = useState(false);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [priorityFilter, setPriorityFilter] = useState('ALL');
@@ -66,6 +68,21 @@ export const LeadsPage: React.FC = () => {
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     fetchLeads();
+  };
+
+  const handleExportCsv = async () => {
+    setIsExporting(true);
+    try {
+      const params = new URLSearchParams();
+      if (statusFilter !== 'ALL') params.append('status', statusFilter);
+      if (priorityFilter !== 'ALL') params.append('priority', priorityFilter);
+      const query = params.toString() ? `?${params.toString()}` : '';
+      await apiClient.download(`/leads/export/csv${query}`, `leads-export-${Date.now()}.csv`);
+    } catch (err: any) {
+      alert(err.message || 'Failed to export leads CSV');
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const handleCreateLead = async (e: React.FormEvent) => {
@@ -141,13 +158,25 @@ export const LeadsPage: React.FC = () => {
           </p>
         </div>
 
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="px-3.5 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs flex items-center space-x-1.5 shadow-glow-cyan transition"
-        >
-          <Plus className="w-4 h-4" />
-          <span>New Lead</span>
-        </button>
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={handleExportCsv}
+            disabled={isExporting}
+            className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium text-xs flex items-center space-x-1.5 border border-slate-700 transition disabled:opacity-50"
+            title="Download leads as RFC 4180 CSV"
+          >
+            <Download className="w-4 h-4 text-cyan-400" />
+            <span>{isExporting ? 'Exporting...' : 'Export CSV'}</span>
+          </button>
+
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="px-3.5 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs flex items-center space-x-1.5 shadow-glow-cyan transition"
+          >
+            <Plus className="w-4 h-4" />
+            <span>New Lead</span>
+          </button>
+        </div>
       </div>
 
       {/* Filter and Search Bar */}

@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Briefcase, Search, Plus, Mail, Phone, Building, User, Sparkles } from 'lucide-react';
+import { Briefcase, Search, Plus, Mail, Phone, Building, User, Sparkles, Download } from 'lucide-react';
 import { apiClient } from '../../api/client';
 import { useCopilot } from '../../context/CopilotContext';
 
 export const ContactsPage: React.FC = () => {
   const [contacts, setContacts] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isExporting, setIsExporting] = useState(false);
   const [search, setSearch] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const { quickPrompt } = useCopilot();
@@ -29,6 +30,17 @@ export const ContactsPage: React.FC = () => {
       console.error('Failed to fetch contacts:', err);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleExportCsv = async () => {
+    setIsExporting(true);
+    try {
+      await apiClient.download('/contacts/export/csv', `contacts-export-${Date.now()}.csv`);
+    } catch (err: any) {
+      alert(err.message || 'Failed to export contacts CSV');
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -73,13 +85,25 @@ export const ContactsPage: React.FC = () => {
           </p>
         </div>
 
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="px-3.5 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs flex items-center space-x-1.5 shadow-glow-cyan transition"
-        >
-          <Plus className="w-4 h-4" />
-          <span>New Contact</span>
-        </button>
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={handleExportCsv}
+            disabled={isExporting}
+            className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium text-xs flex items-center space-x-1.5 border border-slate-700 transition disabled:opacity-50"
+            title="Download contacts as RFC 4180 CSV"
+          >
+            <Download className="w-4 h-4 text-cyan-400" />
+            <span>{isExporting ? 'Exporting...' : 'Export CSV'}</span>
+          </button>
+
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="px-3.5 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs flex items-center space-x-1.5 shadow-glow-cyan transition"
+          >
+            <Plus className="w-4 h-4" />
+            <span>New Contact</span>
+          </button>
+        </div>
       </div>
 
       {/* Filter and Search */}

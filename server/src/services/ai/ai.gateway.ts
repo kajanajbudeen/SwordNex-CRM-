@@ -302,36 +302,214 @@ export class AiGateway {
   }
 
   /**
+   * Provider LLM Caller (Google Gemini & OpenAI with safe timeouts)
+   */
+  private static async callLLM(prompt: string, systemPrompt?: string): Promise<string | null> {
+    if (config.ai.geminiApiKey) {
+      try {
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${config.ai.geminiApiKey}`;
+        const body = {
+          contents: [
+            {
+              role: 'user',
+              parts: [{ text: `${systemPrompt ? systemPrompt + '\n\n' : ''}${prompt}` }],
+            },
+          ],
+          generationConfig: {
+            temperature: 0.3,
+            maxOutputTokens: 1024,
+          },
+        };
+
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(8000),
+        });
+
+        if (res.ok) {
+          const data: any = await res.json();
+          const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (text) return text.trim();
+        }
+      } catch (err) {
+        console.warn('[AiGateway] Gemini API call failed or timed out; falling back to heuristic engine.');
+      }
+    }
+
+    if (config.ai.openAiApiKey) {
+      try {
+        const res = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${config.ai.openAiApiKey}`,
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            messages: [
+              ...(systemPrompt ? [{ role: 'system', content: systemPrompt }] : []),
+              { role: 'user', content: prompt },
+            ],
+            temperature: 0.3,
+            max_tokens: 1024,
+          }),
+          signal: AbortSignal.timeout(8000),
+        });
+
+        if (res.ok) {
+          const data: any = await res.json();
+          const text = data?.choices?.[0]?.message?.content;
+          if (text) return text.trim();
+        }
+      } catch (err) {
+        console.warn('[AiGateway] OpenAI API call failed or timed out; falling back to heuristic engine.');
+      }
+    }
+
+    return null;
+  }
+
+  /**
    * AI Meeting Summarizer & Task Extractor
+   * Dynamically parses transcript lines, speakers, commitments, and sentiment
    */
   static async summarizeMeetingTranscript(transcript: string): Promise<MeetingSummaryResult> {
+    // If LLM provider is configured, attempt live structured summarization
+    if (config.ai.geminiApiKey || config.ai.openAiApiKey) {
+      const llmPrompt = `Analyze the following sales call transcript and return JSON ONLY with this structure:
+{
+  "summary": "2-3 sentence overview of meeting",
+  "keyPoints": ["point 1", "point 2", "point 3"],
+  "actionItems": [{"task": "description", "owner": "name or role", "dueDate": "timeline"}],
+  "customerSentiment": "POSITIVE" | "NEUTRAL" | "SKEPTICAL" | "CHALLENGING",
+  "confidence": 0.95
+}
+
+Transcript:
+${transcript}`;
+
+      const llmResponse = await this.callLLM(
+        llmPrompt,
+        'You are an expert enterprise sales meeting analyst. Respond only with valid JSON.'
+      );
+
+      if (llmResponse) {
+        try {
+          const cleaned = llmResponse.replace(/^```json/m, '').replace(/```$/m, '').trim();
+          const parsed = JSON.parse(cleaned);
+          if (parsed.summary && Array.isArray(parsed.keyPoints) && Array.isArray(parsed.actionItems)) {
+            return {
+              summary: parsed.summary,
+              keyPoints: parsed.keyPoints,
+              actionItems: parsed.actionItems,
+              customerSentiment: parsed.customerSentiment || 'POSITIVE',
+              confidence: Number(parsed.confidence) || 0.92,
+            };
+          }
+        } catch (e) {
+          // JSON parsing failed, fallback to heuristic extraction
+        }
+      }
+    }
+
+    // Dynamic Heuristic & Semantic Text Extraction
+    const lines = transcript
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0);
+
+    const actionItems: { task: string; owner?: string; dueDate?: string }[] = [];
+    const keyPoints: string[] = [];
+    const actionVerbs = [
+      'will',
+      'need to',
+      'shall',
+      'action',
+      'send',
+      'schedule',
+      'follow up',
+      'prepare',
+      'share',
+      'review',
+      'deliver',
+      'confirm',
+      'set up',
+    ];
+
+    const positiveWords = ['great', 'excited', 'love', 'agree', 'perfect', 'confident', 'yes', 'excellent', 'fantastic', 'interested'];
+    const skepticalWords = ['concern', 'risk', 'hesitant', 'expensive', 'delay', 'issue', 'problem', 'worried', 'difficult', 'blocker'];
+
+    let positiveScore = 0;
+    let skepticalScore = 0;
+
+    for (const line of lines) {
+      const lower = line.toLowerCase();
+
+      // Check sentiment indicators
+      positiveWords.forEach((pw) => {
+        if (lower.includes(pw)) positiveScore++;
+      });
+      skepticalWords.forEach((sw) => {
+        if (lower.includes(sw)) skepticalScore++;
+      });
+
+      // Check for speaker pattern (e.g. "John: I will send the proposal")
+      const speakerMatch = line.match(/^([A-Za-z\s]+):\s*(.*)$/);
+      const speaker = speakerMatch ? speakerMatch[1].trim() : undefined;
+      const content = speakerMatch ? speakerMatch[2].trim() : line;
+
+      // Detect action items
+      const hasActionVerb = actionVerbs.some((verb) => content.toLowerCase().includes(verb));
+      if (hasActionVerb && actionItems.length < 5) {
+        let dueDate = 'Next touchpoint';
+        if (content.toLowerCase().includes('tomorrow')) dueDate = 'Tomorrow';
+        else if (content.toLowerCase().includes('today')) dueDate = 'End of Day';
+        else if (content.toLowerCase().includes('friday')) dueDate = 'This Friday';
+        else if (content.toLowerCase().includes('week')) dueDate = 'Next week';
+        else if (content.toLowerCase().includes('month')) dueDate = 'Next month';
+
+        actionItems.push({
+          task: content,
+          owner: speaker || 'Sales Team',
+          dueDate,
+        });
+      } else if (content.length > 25 && keyPoints.length < 4) {
+        keyPoints.push(content);
+      }
+    }
+
+    let customerSentiment: 'POSITIVE' | 'NEUTRAL' | 'SKEPTICAL' | 'CHALLENGING' = 'NEUTRAL';
+    if (positiveScore > skepticalScore + 1) {
+      customerSentiment = 'POSITIVE';
+    } else if (skepticalScore > positiveScore + 1) {
+      customerSentiment = 'SKEPTICAL';
+    } else if (skepticalScore > 3) {
+      customerSentiment = 'CHALLENGING';
+    }
+
+    if (actionItems.length === 0) {
+      actionItems.push({
+        task: 'Send meeting recap notes and agree on next evaluation milestone',
+        owner: 'Account Executive',
+        dueDate: 'Within 24 hours',
+      });
+    }
+
+    if (keyPoints.length === 0) {
+      keyPoints.push(`Discussion reviewed key customer requirements across ${lines.length} logged statements.`);
+    }
+
+    const firstSpeaker = lines[0]?.split(':')[0] || 'Stakeholders';
+    const summary = `Meeting with ${firstSpeaker} reviewed platform capabilities and project timeline. Identified ${actionItems.length} specific follow-up commitments with an overall ${customerSentiment.toLowerCase()} customer posture.`;
+
     return {
-      summary:
-        'The customer expressed strong interest in consolidating disparate marketing and sales tools into SwordNex AI CRM. Primary concerns focused on data migration timeline, role-based security boundaries, and team onboarding.',
-      keyPoints: [
-        'Customer currently experiences a 30% drop in lead qualification due to manual routing delays.',
-        'Requires enterprise single-sign-on (SSO) and tenant data isolation compliance.',
-        'Target deployment go-live date is planned for end of next month.',
-      ],
-      actionItems: [
-        {
-          task: 'Provide detailed data migration blueprint and API documentation',
-          owner: 'Sales Engineer',
-          dueDate: 'In 3 business days',
-        },
-        {
-          task: 'Deliver customized security whitepaper addressing RBAC and audit logging',
-          owner: 'Account Executive',
-          dueDate: 'Tomorrow',
-        },
-        {
-          task: 'Schedule procurement and security architecture review call',
-          owner: 'Customer Success',
-          dueDate: 'Next Tuesday',
-        },
-      ],
-      customerSentiment: 'POSITIVE',
-      confidence: 0.94,
+      summary,
+      keyPoints,
+      actionItems,
+      customerSentiment,
+      confidence: 0.91,
     };
   }
 

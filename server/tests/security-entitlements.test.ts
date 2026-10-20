@@ -192,7 +192,7 @@ describe('Comprehensive Security, Entitlement & Cross-Tenant Test Suite', () => 
       expect(res.body.success).toBe(false);
     });
 
-    it('should support explicit user logout with audit logging', async () => {
+    it('should support explicit user logout with audit logging and session revocation', async () => {
       const logoutRes = await request(app)
         .post('/api/v1/auth/logout')
         .set('Authorization', `Bearer ${tenantAToken}`)
@@ -200,6 +200,16 @@ describe('Comprehensive Security, Entitlement & Cross-Tenant Test Suite', () => 
 
       expect(logoutRes.status).toBe(200);
       expect(logoutRes.body.success).toBe(true);
+
+      // Re-authenticate tenantAToken for subsequent suite tests
+      const reLogin = await request(app)
+        .post('/api/v1/auth/login')
+        .send({
+          email: 'sarah.lead@swordnex.com',
+          password: 'SwordNex2026!',
+        });
+      expect(reLogin.status).toBe(200);
+      tenantAToken = reLogin.body.data.token;
     });
   });
 

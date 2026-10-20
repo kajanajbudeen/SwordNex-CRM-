@@ -12,6 +12,7 @@ router.post('/lead-score', AiController.scoreLead);
 router.post('/next-best-action', AiController.getNextBestAction);
 router.post('/generate-email', AiController.generateSalesEmail);
 router.post('/meeting-summary', AiController.summarizeMeeting);
+router.post('/summarize-meeting', AiController.summarizeMeeting);
 router.post('/deal-health', AiController.evaluateDealHealth);
 router.post('/search', AiController.naturalLanguageSearch);
 router.post('/agent-run', AiController.triggerAgentRun);

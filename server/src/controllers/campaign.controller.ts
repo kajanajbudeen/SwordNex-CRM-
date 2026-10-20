@@ -87,4 +87,145 @@ export class CampaignController {
 
     return sendSuccess(res, null, 'Campaign deleted successfully');
   }
+
+  /**
+   * Dispatch Campaign with Anti-Spam Opt-Out / Suppression Filtering
+   * Route: POST /api/v1/campaigns/:id/send
+   */
+  static async dispatch(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+
+      const campaign = await prisma.campaign.findFirst({
+        where: { id, organizationId: req.organizationId },
+      });
+
+      if (!campaign) {
+        return sendError(res, 'Campaign not found', 404);
+      }
+
+      // Query revoked consent records for this tenant to build suppression list
+      const revokedConsents = await prisma.consentRecord.findMany({
+        where: {
+          organizationId: req.organizationId!,
+          status: 'REVOKED',
+        },
+      });
+
+      const suppressedEmails = new Set(
+        revokedConsents.filter((c) => c.email).map((c) => c.email!.toLowerCase())
+      );
+      const suppressedPhones = new Set(
+        revokedConsents.filter((c) => c.phone).map((c) => c.phone!)
+      );
+
+      // Target leads and contacts
+      const [leads, contacts] = await Promise.all([
+        prisma.lead.findMany({
+          where: { organizationId: req.organizationId },
+          select: { id: true, email: true, phone: true },
+        }),
+        prisma.contact.findMany({
+          where: { organizationId: req.organizationId },
+          select: { id: true, email: true, phone: true },
+        }),
+      ]);
+
+      const allRecipients = [...leads, ...contacts];
+      const eligible = allRecipients.filter((r) => {
+        if (r.email && suppressedEmails.has(r.email.toLowerCase())) return false;
+        if (r.phone && suppressedPhones.has(r.phone)) return false;
+        return true;
+      });
+
+      const suppressedCount = allRecipients.length - eligible.length;
+
+      const updated = await prisma.campaign.update({
+        where: { id },
+        data: {
+          status: 'RUNNING',
+          sentCount: eligible.length,
+          scheduledAt: new Date(),
+        },
+      });
+
+      // Record usage for sent items
+      if (eligible.length > 0) {
+        await prisma.usageRecord.create({
+          data: {
+            organizationId: req.organizationId!,
+            metric: campaign.type === 'SMS' ? 'SMS_SENT' : 'EMAILS_SENT',
+            quantity: eligible.length,
+            metadata: { campaignId: campaign.id, suppressedCount },
+          },
+        });
+      }
+
+      await AuditService.log({
+        organizationId: req.organizationId!,
+        userId: req.user?.id,
+        action: 'DISPATCH_CAMPAIGN',
+        entity: 'CAMPAIGN',
+        entityId: campaign.id,
+        details: {
+          name: campaign.name,
+          dispatchedCount: eligible.length,
+          suppressedCount,
+        },
+      });
+
+      return sendSuccess(
+        res,
+        {
+          campaign: updated,
+          dispatchedCount: eligible.length,
+          suppressedCount,
+        },
+        `Campaign dispatched to ${eligible.length} recipients (${suppressedCount} suppressed by unsubscribe preference).`
+      );
+    } catch (err: any) {
+      return sendError(res, err.message || 'Failed to dispatch campaign', 500);
+    }
+  }
+
+  /**
+   * One-Click Unsubscribe Endpoint (CAN-SPAM & Anti-Spam Compliance)
+   * Route: POST /api/v1/campaigns/unsubscribe
+   */
+  static async unsubscribe(req: Request, res: Response) {
+    try {
+      const { organizationId, email, phone, consentType = 'MARKETING_EMAIL' } = req.body;
+
+      if (!organizationId || (!email && !phone)) {
+        return sendError(
+          res,
+          'organizationId and either email or phone is required to unsubscribe',
+          400
+        );
+      }
+
+      const normalizedEmail = email ? String(email).trim().toLowerCase() : null;
+
+      const consent = await prisma.consentRecord.create({
+        data: {
+          organizationId,
+          email: normalizedEmail,
+          phone: phone ? String(phone).trim() : null,
+          consentType,
+          status: 'REVOKED',
+          revokedAt: new Date(),
+          source: 'ONE_CLICK_UNSUBSCRIBE',
+          ipAddress: req.ip,
+        },
+      });
+
+      return sendSuccess(
+        res,
+        consent,
+        'You have been successfully unsubscribed from future communications.'
+      );
+    } catch (err: any) {
+      return sendError(res, err.message || 'Failed to process unsubscribe request', 500);
+    }
+  }
 }

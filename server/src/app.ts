@@ -103,8 +103,8 @@ export const createApp = (): Application => {
   app.use(`${prefix}/companies`, authenticate, resolveTenant, requireActiveSubscription, companyRoutes);
   app.use(`${prefix}/tasks`, authenticate, resolveTenant, requireActiveSubscription, taskRoutes);
   app.use(`${prefix}/activities`, authenticate, resolveTenant, requireActiveSubscription, activityRoutes);
-  app.use(`${prefix}/comms`, authenticate, resolveTenant, requireActiveSubscription, commsRoutes);
-  app.use(`${prefix}/campaigns`, authenticate, resolveTenant, requireActiveSubscription, campaignRoutes);
+  app.use(`${prefix}/comms`, commsRoutes);
+  app.use(`${prefix}/campaigns`, campaignRoutes);
   app.use(`${prefix}/ai`, authenticate, resolveTenant, requireActiveSubscription, aiRoutes);
   app.use(`${prefix}/workflows`, authenticate, resolveTenant, requireActiveSubscription, workflowRoutes);
   app.use(`${prefix}/reports`, authenticate, resolveTenant, requireActiveSubscription, reportRoutes);

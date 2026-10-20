@@ -143,4 +143,61 @@ export class ContactController {
 
     return sendSuccess(res, null, 'Contact deleted successfully');
   }
+
+  static async exportCsv(req: Request, res: Response) {
+    try {
+      const contacts = await prisma.contact.findMany({
+        where: { organizationId: req.organizationId },
+        include: { company: true },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      const headers = [
+        'ID',
+        'First Name',
+        'Last Name',
+        'Email',
+        'Phone',
+        'Company',
+        'Title',
+        'Department',
+        'Lifecycle Stage',
+        'Created At',
+      ];
+
+      const rows = contacts.map((c) => [
+        c.id,
+        c.firstName,
+        c.lastName,
+        c.email || '',
+        c.phone || '',
+        c.company?.name || '',
+        c.title || '',
+        c.department || '',
+        c.lifecycleStage,
+        c.createdAt.toISOString(),
+      ]);
+
+      const csvContent = [headers, ...rows]
+        .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+        .join('\r\n');
+
+      await AuditService.log({
+        organizationId: req.organizationId!,
+        userId: req.user?.id,
+        action: 'EXPORT',
+        entity: 'CONTACTS',
+        details: { count: contacts.length },
+      });
+
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="contacts-export-${Date.now()}.csv"`
+      );
+      return res.status(200).send(csvContent);
+    } catch (err: any) {
+      return sendError(res, err.message || 'Failed to export contacts', 500);
+    }
+  }
 }

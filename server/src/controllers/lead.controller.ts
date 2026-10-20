@@ -463,4 +463,77 @@ export class LeadController {
 
     return sendSuccess(res, conversionResult, 'Lead converted into Contact, Company, and Deal successfully');
   }
+
+  static async exportCsv(req: Request, res: Response) {
+    try {
+      const { status, priority, source } = req.query;
+      const where: any = { organizationId: req.organizationId };
+
+      if (status && status !== 'ALL') {
+        where.status = status;
+      }
+      if (priority && priority !== 'ALL') {
+        where.priority = priority;
+      }
+      if (source && source !== 'ALL') {
+        where.source = source;
+      }
+
+      const leads = await prisma.lead.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+      });
+
+      const headers = [
+        'ID',
+        'First Name',
+        'Last Name',
+        'Email',
+        'Phone',
+        'Company',
+        'Title',
+        'Status',
+        'Priority',
+        'Source',
+        'Score',
+        'Created At',
+      ];
+
+      const rows = leads.map((l) => [
+        l.id,
+        l.firstName,
+        l.lastName,
+        l.email || '',
+        l.phone || '',
+        l.company || '',
+        l.title || '',
+        l.status,
+        l.priority,
+        l.source,
+        l.score,
+        l.createdAt.toISOString(),
+      ]);
+
+      const csvContent = [headers, ...rows]
+        .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+        .join('\r\n');
+
+      await AuditService.log({
+        organizationId: req.organizationId!,
+        userId: req.user?.id,
+        action: 'EXPORT',
+        entity: 'LEADS',
+        details: { count: leads.length, filter: { status, priority, source } },
+      });
+
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="leads-export-${Date.now()}.csv"`
+      );
+      return res.status(200).send(csvContent);
+    } catch (err: any) {
+      return sendError(res, err.message || 'Failed to export leads', 500);
+    }
+  }
 }

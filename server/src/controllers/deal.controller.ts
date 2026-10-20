@@ -326,4 +326,70 @@ export class DealController {
 
     return sendSuccess(res, { deal: updatedDeal, health });
   }
+
+  static async exportCsv(req: Request, res: Response) {
+    try {
+      const deals = await prisma.deal.findMany({
+        where: { organizationId: req.organizationId },
+        include: {
+          stage: true,
+          pipeline: true,
+          contact: { select: { firstName: true, lastName: true } },
+          company: { select: { name: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      const headers = [
+        'ID',
+        'Title',
+        'Amount',
+        'Currency',
+        'Status',
+        'Pipeline',
+        'Stage',
+        'Probability (%)',
+        'Contact',
+        'Company',
+        'Expected Close Date',
+        'Created At',
+      ];
+
+      const rows = deals.map((d) => [
+        d.id,
+        d.title,
+        d.amount,
+        d.currency,
+        d.status,
+        d.pipeline?.name || '',
+        d.stage?.name || '',
+        d.probability,
+        d.contact ? `${d.contact.firstName} ${d.contact.lastName}` : '',
+        d.company?.name || '',
+        d.expectedCloseDate ? d.expectedCloseDate.toISOString().slice(0, 10) : '',
+        d.createdAt.toISOString(),
+      ]);
+
+      const csvContent = [headers, ...rows]
+        .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+        .join('\r\n');
+
+      await AuditService.log({
+        organizationId: req.organizationId!,
+        userId: req.user?.id,
+        action: 'EXPORT',
+        entity: 'DEALS',
+        details: { count: deals.length },
+      });
+
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="deals-export-${Date.now()}.csv"`
+      );
+      return res.status(200).send(csvContent);
+    } catch (err: any) {
+      return sendError(res, err.message || 'Failed to export deals', 500);
+    }
+  }
 }

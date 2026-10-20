@@ -11,6 +11,7 @@ import {
   Building,
   User,
   Filter,
+  Download,
 } from 'lucide-react';
 import { apiClient } from '../../api/client';
 import { useCopilot } from '../../context/CopilotContext';
@@ -20,6 +21,7 @@ export const DealsKanbanPage: React.FC = () => {
   const [deals, setDeals] = useState<any[]>([]);
   const [selectedPipelineId, setSelectedPipelineId] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
+  const [isExporting, setIsExporting] = useState(false);
   const [activeHealthModal, setActiveHealthModal] = useState<any | null>(null);
   const [showCreateDeal, setShowCreateDeal] = useState(false);
   const { quickPrompt } = useCopilot();
@@ -121,6 +123,17 @@ export const DealsKanbanPage: React.FC = () => {
     }
   };
 
+  const handleExportCsv = async () => {
+    setIsExporting(true);
+    try {
+      await apiClient.download('/deals/export/csv', `deals-export-${Date.now()}.csv`);
+    } catch (err: any) {
+      alert(err.message || 'Failed to export deals CSV');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <div className="space-y-5 h-full flex flex-col">
       {/* Header Bar */}
@@ -138,6 +151,16 @@ export const DealsKanbanPage: React.FC = () => {
         </div>
 
         <div className="flex items-center space-x-3">
+          <button
+            onClick={handleExportCsv}
+            disabled={isExporting}
+            className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center space-x-1.5 transition disabled:opacity-50"
+            title="Download deals as RFC 4180 CSV"
+          >
+            <Download className="w-3.5 h-3.5 text-cyan-400" />
+            <span>{isExporting ? 'Exporting...' : 'Export CSV'}</span>
+          </button>
+
           <button
             onClick={() => quickPrompt('Analyze all stalled deals in my pipeline and generate recovery steps.')}
             className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-cyan-300 border border-cyan-500/30 text-xs font-semibold flex items-center space-x-1.5 transition"

@@ -3,7 +3,6 @@ import request from 'supertest';
 import { createApp } from '../src/app';
 import { prisma } from '../src/utils/prisma';
 import bcrypt from 'bcryptjs';
-import crypto from 'crypto';
 
 const app = createApp();
 
@@ -17,7 +16,7 @@ describe('Phase 2 Security & Tenant Isolation Test Suite', () => {
 
   beforeAll(async () => {
     // Clean test users & orgs if exist
-    const testEmails = ['sec.userA@example.com', 'sec.userB@example.com'];
+    const testEmails = ['sec.usera@example.com', 'sec.userb@example.com'];
     await prisma.user.deleteMany({ where: { email: { in: testEmails } } });
     await prisma.organization.deleteMany({
       where: { slug: { in: ['sec-test-org-a', 'sec-test-org-b'] } },
@@ -35,9 +34,23 @@ describe('Phase 2 Security & Tenant Isolation Test Suite', () => {
       },
     });
 
+    await prisma.subscription.create({
+      data: {
+        organizationId: tenantAOrg.id,
+        plan: 'STANDARD',
+        planSlug: 'STANDARD',
+        billingInterval: 'MONTHLY',
+        status: 'ACTIVE',
+        price: 2499,
+        currency: 'INR',
+        currentPeriodStart: new Date(),
+        currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      },
+    });
+
     userA = await prisma.user.create({
       data: {
-        email: 'sec.userA@example.com',
+        email: 'sec.usera@example.com',
         passwordHash: hash,
         firstName: 'Alice',
         lastName: 'SecA',
@@ -64,9 +77,23 @@ describe('Phase 2 Security & Tenant Isolation Test Suite', () => {
       },
     });
 
+    await prisma.subscription.create({
+      data: {
+        organizationId: tenantBOrg.id,
+        plan: 'STANDARD',
+        planSlug: 'STANDARD',
+        billingInterval: 'MONTHLY',
+        status: 'ACTIVE',
+        price: 2499,
+        currency: 'INR',
+        currentPeriodStart: new Date(),
+        currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      },
+    });
+
     userB = await prisma.user.create({
       data: {
-        email: 'sec.userB@example.com',
+        email: 'sec.userb@example.com',
         passwordHash: hash,
         firstName: 'Bob',
         lastName: 'SecB',
@@ -86,12 +113,14 @@ describe('Phase 2 Security & Tenant Isolation Test Suite', () => {
     // Log in both users to obtain valid JWTs
     const loginResA = await request(app)
       .post('/api/v1/auth/login')
-      .send({ email: 'sec.userA@example.com', password: 'SwordNex2026!' });
+      .send({ email: 'sec.usera@example.com', password: 'SwordNex2026!' });
+    expect(loginResA.status).toBe(200);
     tokenA = loginResA.body.data.token;
 
     const loginResB = await request(app)
       .post('/api/v1/auth/login')
-      .send({ email: 'sec.userB@example.com', password: 'SwordNex2026!' });
+      .send({ email: 'sec.userb@example.com', password: 'SwordNex2026!' });
+    expect(loginResB.status).toBe(200);
     tokenB = loginResB.body.data.token;
   });
 
@@ -104,7 +133,7 @@ describe('Phase 2 Security & Tenant Isolation Test Suite', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(res.body.data.user.email).toBe('sec.userA@example.com');
+      expect(res.body.data.user.email).toBe('sec.usera@example.com');
     });
 
     it('should immediately revoke token validity upon user logout', async () => {
@@ -134,7 +163,7 @@ describe('Phase 2 Security & Tenant Isolation Test Suite', () => {
     it('should issue a hashed password reset token on forgot-password request', async () => {
       const res = await request(app)
         .post('/api/v1/auth/forgot-password')
-        .send({ email: 'sec.userB@example.com' });
+        .send({ email: 'sec.userb@example.com' });
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
@@ -143,7 +172,7 @@ describe('Phase 2 Security & Tenant Isolation Test Suite', () => {
 
       // Verify token in database is hashed (not raw plaintext)
       const user = await prisma.user.findUnique({
-        where: { email: 'sec.userB@example.com' },
+        where: { email: 'sec.userb@example.com' },
       });
       expect(user?.passwordResetToken).not.toBe(resetToken);
       expect(user?.passwordResetExpiresAt).toBeDefined();
@@ -160,7 +189,7 @@ describe('Phase 2 Security & Tenant Isolation Test Suite', () => {
 
     it('should successfully reset password and increment tokenVersion', async () => {
       const userBefore = await prisma.user.findUnique({
-        where: { email: 'sec.userB@example.com' },
+        where: { email: 'sec.userb@example.com' },
       });
       const initialVersion = userBefore?.tokenVersion || 0;
 
@@ -173,7 +202,7 @@ describe('Phase 2 Security & Tenant Isolation Test Suite', () => {
 
       // Verify tokenVersion incremented (revoking prior sessions)
       const userAfter = await prisma.user.findUnique({
-        where: { email: 'sec.userB@example.com' },
+        where: { email: 'sec.userb@example.com' },
       });
       expect(userAfter?.tokenVersion).toBeGreaterThan(initialVersion);
       expect(userAfter?.passwordResetToken).toBeNull();
@@ -189,7 +218,7 @@ describe('Phase 2 Security & Tenant Isolation Test Suite', () => {
       // Logging in with new password succeeds
       const newLogin = await request(app)
         .post('/api/v1/auth/login')
-        .send({ email: 'sec.userB@example.com', password: 'BrandNewSecurePass2026!' });
+        .send({ email: 'sec.userb@example.com', password: 'BrandNewSecurePass2026!' });
 
       expect(newLogin.status).toBe(200);
       expect(newLogin.body.data.token).toBeDefined();
@@ -203,12 +232,12 @@ describe('Phase 2 Security & Tenant Isolation Test Suite', () => {
       // Re-login User A and User B
       const loginA = await request(app)
         .post('/api/v1/auth/login')
-        .send({ email: 'sec.userA@example.com', password: 'SwordNex2026!' });
+        .send({ email: 'sec.usera@example.com', password: 'SwordNex2026!' });
       tokenA = loginA.body.data.token;
 
       const loginB = await request(app)
         .post('/api/v1/auth/login')
-        .send({ email: 'sec.userB@example.com', password: 'BrandNewSecurePass2026!' });
+        .send({ email: 'sec.userb@example.com', password: 'BrandNewSecurePass2026!' });
       tokenB = loginB.body.data.token;
 
       // Seed a Lead in Tenant B
@@ -252,7 +281,6 @@ describe('Phase 2 Security & Tenant Isolation Test Suite', () => {
 
   describe('4. Cryptographic Payment Verification Enforcement', () => {
     it('should reject payment verification if HMAC SHA256 signature does not match', async () => {
-      // Temporarily set a test key secret
       const originalSecret = process.env.RAZORPAY_KEY_SECRET;
       process.env.RAZORPAY_KEY_SECRET = 'test_secret_for_hmac_verification';
 

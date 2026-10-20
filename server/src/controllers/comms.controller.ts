@@ -156,4 +156,135 @@ export class CommsController {
 
     return sendSuccess(res, { conversation, message }, 'Conversation started successfully', undefined, 201);
   }
+
+  static async handleInboundWebhook(req: Request, res: Response) {
+    try {
+      const { provider } = req.params;
+      const body = req.body || {};
+
+      // Case 1: Status update delivery receipt callback
+      if (body.messageId || body.externalMessageId) {
+        const message = await prisma.message.findFirst({
+          where: {
+            OR: [
+              ...(body.messageId ? [{ id: body.messageId }] : []),
+              ...(body.externalMessageId ? [{ externalMessageId: body.externalMessageId }] : []),
+            ],
+          },
+        });
+
+        if (message) {
+          const newStatus =
+            body.status === 'DELIVERED' || body.status === 'READ' || body.status === 'FAILED'
+              ? body.status
+              : 'DELIVERED';
+
+          await prisma.message.update({
+            where: { id: message.id },
+            data: {
+              status: newStatus,
+              failureReason: body.failureReason || null,
+            },
+          });
+
+          return res.status(200).json({ success: true, event: 'status_updated', messageId: message.id });
+        }
+      }
+
+      // Case 2: Inbound message from customer / external sender
+      const from = body.from || body.From || body.sender;
+      const messageBody = body.body || body.Body || body.text || body.message;
+      const channel = (body.channel || (provider === 'twilio' ? 'SMS' : provider === 'whatsapp' ? 'WHATSAPP' : 'EMAIL')).toUpperCase();
+
+      if (!from || !messageBody) {
+        return res.status(400).json({ success: false, error: 'Invalid webhook payload: sender and body required' });
+      }
+
+      // Identify tenant by contact, lead, or explicit organizationId
+      let organizationId = req.organizationId || body.organizationId;
+      let contactId: string | null = null;
+      let leadId: string | null = null;
+
+      if (!organizationId) {
+        const contact = await prisma.contact.findFirst({
+          where: {
+            OR: [
+              { email: { equals: from, mode: 'insensitive' } },
+              { phone: { contains: from } },
+            ],
+          },
+        });
+
+        if (contact) {
+          organizationId = contact.organizationId;
+          contactId = contact.id;
+        } else {
+          const lead = await prisma.lead.findFirst({
+            where: {
+              OR: [
+                { email: { equals: from, mode: 'insensitive' } },
+                { phone: { contains: from } },
+              ],
+            },
+          });
+          if (lead) {
+            organizationId = lead.organizationId;
+            leadId = lead.id;
+          }
+        }
+      }
+
+      if (!organizationId) {
+        return res.status(200).json({ success: true, notice: 'Sender not matched to any active CRM record; queued without tenant' });
+      }
+
+      // Find or create active conversation
+      let conversation = await prisma.conversation.findFirst({
+        where: {
+          organizationId,
+          OR: [
+            ...(contactId ? [{ contactId }] : []),
+            ...(leadId ? [{ leadId }] : []),
+          ],
+        },
+        orderBy: { lastMessageAt: 'desc' },
+      });
+
+      if (!conversation) {
+        conversation = await prisma.conversation.create({
+          data: {
+            organizationId,
+            channel: channel === 'WHATSAPP' ? 'WHATSAPP' : channel === 'SMS' ? 'SMS' : 'EMAIL',
+            subject: `Inbound ${channel} from ${from}`,
+            contactId,
+            leadId,
+          },
+        });
+      }
+
+      const incomingMessage = await prisma.message.create({
+        data: {
+          conversationId: conversation.id,
+          senderType: 'CUSTOMER',
+          body: messageBody,
+          status: 'SENT',
+          externalMessageId: body.messageId || body.MessageSid || null,
+        },
+      });
+
+      await prisma.conversation.update({
+        where: { id: conversation.id },
+        data: { lastMessageAt: new Date() },
+      });
+
+      return res.status(200).json({
+        success: true,
+        event: 'message_received',
+        conversationId: conversation.id,
+        messageId: incomingMessage.id,
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message || 'Webhook processing failed' });
+    }
+  }
 }
