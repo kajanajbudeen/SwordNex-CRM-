@@ -186,7 +186,17 @@ export class SubscriptionController {
         return sendError(res, 'Duplicate payment confirmation. This transaction has already been processed.', 409);
       }
 
-      // Verify HMAC SHA256 Signature if real secret is configured
+      // Verify HMAC SHA256 Signature
+      const isProd = process.env.NODE_ENV === 'production';
+      if (isProd) {
+        if (!process.env.RAZORPAY_KEY_SECRET) {
+          return sendError(res, 'Payment gateway configuration error: RAZORPAY_KEY_SECRET is required in production.', 500);
+        }
+        if (!signature) {
+          return sendError(res, 'Payment signature is required for cryptographic verification.', 400);
+        }
+      }
+
       if (process.env.RAZORPAY_KEY_SECRET && signature) {
         const expectedSignature = crypto
           .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)

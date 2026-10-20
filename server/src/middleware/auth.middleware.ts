@@ -27,11 +27,17 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
         lastName: true,
         globalRole: true,
         isActive: true,
+        tokenVersion: true,
       },
     });
 
     if (!user || !user.isActive) {
       return sendError(res, 'User account is deactivated or no longer exists', 401);
+    }
+
+    // Session revocation validation
+    if (payload.tokenVersion !== undefined && payload.tokenVersion !== user.tokenVersion) {
+      return sendError(res, 'Session has been revoked or invalidated. Please sign in again.', 401);
     }
 
     req.user = user;

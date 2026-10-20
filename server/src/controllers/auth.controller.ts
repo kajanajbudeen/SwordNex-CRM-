@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
@@ -17,6 +18,20 @@ const registerSchema = z.object({
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
+});
+
+const forgotPasswordSchema = z.object({
+  email: z.string().email(),
+});
+
+const resetPasswordSchema = z.object({
+  token: z.string().min(1, 'Reset token is required'),
+  newPassword: z.string().min(8, 'New password must be at least 8 characters long'),
+});
+
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, 'Current password is required'),
+  newPassword: z.string().min(8, 'New password must be at least 8 characters long'),
 });
 
 export class AuthController {
@@ -192,12 +207,14 @@ export class AuthController {
       userId: result.user.id,
       email: result.user.email,
       globalRole: result.user.globalRole,
+      tokenVersion: result.user.tokenVersion,
     });
 
     const refreshToken = generateRefreshToken({
       userId: result.user.id,
       email: result.user.email,
       globalRole: result.user.globalRole,
+      tokenVersion: result.user.tokenVersion,
     });
 
     await AuditService.log({
@@ -313,12 +330,14 @@ export class AuthController {
       userId: user.id,
       email: user.email,
       globalRole: user.globalRole,
+      tokenVersion: user.tokenVersion,
     });
 
     const refreshToken = generateRefreshToken({
       userId: user.id,
       email: user.email,
       globalRole: user.globalRole,
+      tokenVersion: user.tokenVersion,
     });
 
     if (activeMembership) {
@@ -423,12 +442,14 @@ export class AuthController {
         userId: user.id,
         email: user.email,
         globalRole: user.globalRole,
+        tokenVersion: user.tokenVersion,
       });
 
       const newRefreshToken = generateRefreshToken({
         userId: user.id,
         email: user.email,
         globalRole: user.globalRole,
+        tokenVersion: user.tokenVersion,
       });
 
       return sendSuccess(
@@ -446,19 +467,127 @@ export class AuthController {
 
   static async logout(req: Request, res: Response) {
     try {
-      if (req.user && req.organizationId) {
-        await AuditService.log({
-          organizationId: req.organizationId,
-          userId: req.user.id,
-          action: 'LOGOUT',
-          entity: 'USER',
-          entityId: req.user.id,
-          ipAddress: req.ip,
+      if (req.user) {
+        // Increment tokenVersion to revoke all active tokens immediately
+        await prisma.user.update({
+          where: { id: req.user.id },
+          data: { tokenVersion: { increment: 1 } },
         });
+
+        if (req.organizationId) {
+          await AuditService.log({
+            organizationId: req.organizationId,
+            userId: req.user.id,
+            action: 'LOGOUT',
+            entity: 'USER',
+            entityId: req.user.id,
+            ipAddress: req.ip,
+          });
+        }
       }
-      return sendSuccess(res, null, 'Logged out successfully');
+      return sendSuccess(res, null, 'Logged out successfully. All sessions revoked.');
     } catch (error: any) {
       return sendError(res, error.message || 'Logout failed', 500);
+    }
+  }
+
+  static async forgotPassword(req: Request, res: Response) {
+    try {
+      const { email } = forgotPasswordSchema.parse(req.body);
+      const user = await prisma.user.findUnique({
+        where: { email: email.toLowerCase() },
+      });
+
+      if (!user || !user.isActive) {
+        return sendSuccess(res, null, 'If this email address exists, a password reset link has been dispatched.');
+      }
+
+      const rawToken = crypto.randomBytes(32).toString('hex');
+      const hashedToken = crypto.createHash('sha256').update(rawToken).digest('hex');
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          passwordResetToken: hashedToken,
+          passwordResetExpiresAt: expiresAt,
+        },
+      });
+
+      return sendSuccess(
+        res,
+        process.env.NODE_ENV !== 'production' ? { resetToken: rawToken } : null,
+        'If this email address exists, a password reset link has been dispatched.'
+      );
+    } catch (error: any) {
+      return sendError(res, error.message || 'Password reset request failed', 400);
+    }
+  }
+
+  static async resetPassword(req: Request, res: Response) {
+    try {
+      const { token, newPassword } = resetPasswordSchema.parse(req.body);
+      const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+      const user = await prisma.user.findFirst({
+        where: {
+          passwordResetToken: hashedToken,
+          passwordResetExpiresAt: { gt: new Date() },
+          isActive: true,
+        },
+      });
+
+      if (!user) {
+        return sendError(res, 'Invalid or expired password reset token.', 400);
+      }
+
+      const passwordHash = await bcrypt.hash(newPassword, 10);
+
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          passwordHash,
+          passwordResetToken: null,
+          passwordResetExpiresAt: null,
+          tokenVersion: { increment: 1 },
+        },
+      });
+
+      return sendSuccess(res, null, 'Password reset successfully. Please log in with your new password.');
+    } catch (error: any) {
+      return sendError(res, error.message || 'Password reset failed', 400);
+    }
+  }
+
+  static async changePassword(req: Request, res: Response) {
+    try {
+      const { currentPassword, newPassword } = changePasswordSchema.parse(req.body);
+      const user = await prisma.user.findUnique({
+        where: { id: req.user!.id },
+      });
+
+      if (!user) {
+        return sendError(res, 'User not found', 404);
+      }
+
+      const isMatch = await bcrypt.compare(currentPassword, user.passwordHash);
+      if (!isMatch) {
+        return sendError(res, 'Incorrect current password.', 400);
+      }
+
+      const passwordHash = await bcrypt.hash(newPassword, 10);
+
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          passwordHash,
+          tokenVersion: { increment: 1 },
+        },
+      });
+
+      return sendSuccess(res, null, 'Password updated successfully. All other sessions revoked.');
+    } catch (error: any) {
+      return sendError(res, error.message || 'Password change failed', 400);
     }
   }
 }

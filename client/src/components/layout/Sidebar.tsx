@@ -55,17 +55,18 @@ export const Sidebar: React.FC = () => {
     <aside className="w-64 bg-[#0B1120] border-r border-slate-800 flex flex-col h-screen fixed left-0 top-0 z-30 select-none">
       {/* Brand Header */}
       <div className="h-16 px-4 border-b border-slate-800 flex items-center justify-between">
-        <div className="flex items-center space-x-3 cursor-pointer" onClick={() => navigate('/dashboard')}>
-          <div className="w-9 h-9 rounded-lg bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center shadow-glow-cyan text-white font-black text-lg">
-            S
-          </div>
-          <div>
-            <div className="flex items-center space-x-1.5">
-              <span className="font-bold text-slate-100 tracking-tight text-base">SwordNex</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 font-semibold border border-cyan-500/30">AI</span>
-            </div>
-            <p className="text-[11px] text-slate-400 font-mono tracking-wider uppercase">CRM Platform</p>
-          </div>
+        <div className="flex items-center justify-between w-full cursor-pointer py-1" onClick={() => navigate('/dashboard')}>
+          <img
+            src="/menu-logo-dark.png"
+            alt="SwordNex Technologies"
+            className="h-7 w-auto max-w-[185px] object-contain drop-shadow-md"
+            onError={(e) => {
+              (e.currentTarget as HTMLImageElement).src = '/menu-logo.png';
+            }}
+          />
+          <span className="text-[9px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 font-mono font-bold border border-cyan-500/30 tracking-wider">
+            AI CRM
+          </span>
         </div>
       </div>
 

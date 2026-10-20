@@ -188,12 +188,16 @@ model User {
   lastName        String
   phone           String?
   avatarUrl       String?
-  isActive        Boolean       @default(true)
-  isEmailVerified Boolean       @default(false)
-  globalRole      UserRole      @default(USER)
-  lastLoginAt     DateTime?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  isActive                Boolean       @default(true)
+  isEmailVerified         Boolean       @default(false)
+  emailVerificationToken  String?
+  tokenVersion            Int           @default(0)
+  passwordResetToken      String?
+  passwordResetExpiresAt  DateTime?
+  globalRole              UserRole      @default(USER)
+  lastLoginAt             DateTime?
+  createdAt               DateTime      @default(now())
+  updatedAt               DateTime      @updatedAt
 
   memberships     Membership[]
   ownedLeads      Lead[]        @relation("LeadOwner")

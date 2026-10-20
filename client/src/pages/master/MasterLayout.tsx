@@ -31,19 +31,18 @@ export const MasterLayout: React.FC = () => {
       <aside className="w-64 bg-[#090C1A] border-r border-purple-500/20 flex flex-col h-screen fixed left-0 top-0 z-30 select-none">
         {/* Master Branding */}
         <div className="h-16 px-4 border-b border-purple-500/20 flex items-center justify-between bg-purple-950/20">
-          <div className="flex items-center space-x-3 cursor-pointer" onClick={() => navigate('/swordnex-master/dashboard')}>
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-purple-600 to-cyan-500 flex items-center justify-center shadow-lg shadow-purple-500/20 text-white font-black text-base border border-purple-400/40">
-              S
-            </div>
-            <div>
-              <div className="flex items-center space-x-1.5">
-                <span className="font-bold text-white tracking-tight text-sm">SwordNex</span>
-                <span className="text-[9px] px-1.5 py-0.2 rounded bg-purple-500/30 text-purple-300 font-mono font-bold border border-purple-400/30">
-                  MASTER
-                </span>
-              </div>
-              <p className="text-[10px] text-purple-300/80 font-mono">Head Office Platform</p>
-            </div>
+          <div className="flex items-center justify-between w-full cursor-pointer py-1" onClick={() => navigate('/swordnex-master/dashboard')}>
+            <img
+              src="/menu-logo-dark.png"
+              alt="SwordNex Technologies"
+              className="h-6 w-auto max-w-[170px] object-contain drop-shadow"
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).src = '/menu-logo.png';
+              }}
+            />
+            <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/30 text-purple-300 font-mono font-bold border border-purple-400/30 tracking-wider">
+              MASTER
+            </span>
           </div>
         </div>
 

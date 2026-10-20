@@ -35,10 +35,17 @@ export const LoginPage: React.FC = () => {
       <div className="w-full max-w-md relative z-10">
         {/* Brand header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-tr from-cyan-500 to-blue-600 shadow-glow-cyan mb-4 text-white font-black text-2xl">
-            S
+          <div className="inline-flex items-center justify-center px-6 py-3 rounded-2xl bg-white/5 border border-slate-700/60 shadow-glow-cyan mb-4 backdrop-blur-sm">
+            <img
+              src="/menu-logo-dark.png"
+              alt="SwordNex Technologies"
+              className="h-9 w-auto object-contain"
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).src = '/menu-logo.png';
+              }}
+            />
           </div>
-          <h1 className="text-2xl font-extrabold text-white tracking-tight">SwordNex AI CRM</h1>
+          <h1 className="text-2xl font-extrabold text-white tracking-tight">AI CRM Platform</h1>
           <p className="text-sm text-cyan-400 font-medium mt-1">
             Understand Customers. Predict Opportunities. Accelerate Growth.
           </p>

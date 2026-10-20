@@ -48,8 +48,8 @@ export const MasterLoginPage: React.FC = () => {
           </div>
 
           <div className="flex items-center justify-center space-x-3 mb-2">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-purple-600 to-cyan-500 flex items-center justify-center shadow-lg shadow-purple-500/20 text-white font-black text-2xl border border-purple-400/30">
-              S
+            <div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center shadow-lg shadow-purple-500/20 p-1.5 border border-purple-400/30 overflow-hidden">
+              <img src="/tab-icon.png" alt="SwordNex" className="w-full h-full object-contain" />
             </div>
             <div className="text-left">
               <h1 className="text-2xl font-black text-white tracking-tight flex items-center space-x-2">
