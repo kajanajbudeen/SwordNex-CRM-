@@ -123,7 +123,7 @@ export class CampaignController {
       const [leads, contacts] = await Promise.all([
         prisma.lead.findMany({
           where: { organizationId: req.organizationId },
-          select: { id: true, email: true, phone: true },
+          select: { id: true, email: true, phone: true, emailOptOut: true },
         }),
         prisma.contact.findMany({
           where: { organizationId: req.organizationId },
@@ -135,6 +135,7 @@ export class CampaignController {
       const eligible = allRecipients.filter((r) => {
         if (r.email && suppressedEmails.has(r.email.toLowerCase())) return false;
         if (r.phone && suppressedPhones.has(r.phone)) return false;
+        if (campaign.type === 'EMAIL' && (r as any).emailOptOut) return false;
         return true;
       });
 

@@ -14,6 +14,12 @@ import {
   MessageSquare,
   FileText,
   User,
+  Edit3,
+  MapPin,
+  Globe,
+  DollarSign,
+  Briefcase,
+  ShieldCheck,
 } from 'lucide-react';
 import { apiClient } from '../../api/client';
 import { useCopilot } from '../../context/CopilotContext';
@@ -91,9 +97,15 @@ export const LeadDetailPage: React.FC = () => {
     );
   }
 
+  const fullAvatarUrl = lead.avatarUrl
+    ? lead.avatarUrl.startsWith('http')
+      ? lead.avatarUrl
+      : `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${lead.avatarUrl}`
+    : null;
+
   return (
     <div className="space-y-6">
-      {/* Back button & Title */}
+      {/* Back button & Actions */}
       <div className="flex items-center justify-between">
         <button
           onClick={() => navigate('/leads')}
@@ -111,6 +123,14 @@ export const LeadDetailPage: React.FC = () => {
             <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
             <span>AI Email Assistant</span>
           </button>
+
+          <button
+            onClick={() => navigate(`/leads/${id}/edit`)}
+            className="px-3.5 py-1.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs flex items-center space-x-1.5 shadow-glow-cyan transition"
+          >
+            <Edit3 className="w-3.5 h-3.5" />
+            <span>Edit Lead</span>
+          </button>
         </div>
       </div>
 
@@ -118,12 +138,20 @@ export const LeadDetailPage: React.FC = () => {
       <div className="glass-panel p-6 rounded-2xl border border-slate-800 shadow-xl relative overflow-hidden">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-start space-x-4">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center font-bold text-slate-950 text-xl shadow-glow-cyan flex-shrink-0">
-              {lead.firstName.charAt(0)}
-              {lead.lastName.charAt(0)}
-            </div>
+            {fullAvatarUrl ? (
+              <img
+                src={fullAvatarUrl}
+                alt={`${lead.firstName} ${lead.lastName}`}
+                className="w-14 h-14 rounded-2xl object-cover border border-cyan-500/40 shadow-glow-cyan flex-shrink-0"
+              />
+            ) : (
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center font-bold text-slate-950 text-xl shadow-glow-cyan flex-shrink-0">
+                {lead.firstName.charAt(0)}
+                {lead.lastName.charAt(0)}
+              </div>
+            )}
             <div>
-              <div className="flex items-center space-x-2.5">
+              <div className="flex items-center flex-wrap gap-2">
                 <h1 className="text-xl font-bold text-white tracking-tight">
                   {lead.firstName} {lead.lastName}
                 </h1>
@@ -133,6 +161,24 @@ export const LeadDetailPage: React.FC = () => {
                 <span className="text-xs px-2 py-0.5 rounded font-mono bg-slate-800 text-slate-300">
                   {lead.status}
                 </span>
+                {lead.rating && (
+                  <span
+                    className={`text-[11px] px-2 py-0.5 rounded font-mono font-bold ${
+                      lead.rating === 'HOT'
+                        ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                        : lead.rating === 'WARM'
+                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                        : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                    }`}
+                  >
+                    {lead.rating === 'HOT' ? '🔥 HOT' : lead.rating === 'WARM' ? '⚡ WARM' : '❄️ COLD'}
+                  </span>
+                )}
+                {lead.emailOptOut && (
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                    EMAIL OPT-OUT
+                  </span>
+                )}
               </div>
               <p className="text-xs text-slate-300 mt-1 flex items-center space-x-2">
                 <span>{lead.title || 'Decision Maker'}</span>
@@ -140,6 +186,12 @@ export const LeadDetailPage: React.FC = () => {
                   <>
                     <span className="text-slate-500">•</span>
                     <span className="text-cyan-400 font-medium">{lead.company}</span>
+                  </>
+                )}
+                {lead.industry && (
+                  <>
+                    <span className="text-slate-500">•</span>
+                    <span className="text-slate-400">{lead.industry}</span>
                   </>
                 )}
               </p>
@@ -156,6 +208,22 @@ export const LeadDetailPage: React.FC = () => {
                     <span>{lead.phone}</span>
                   </div>
                 )}
+                {lead.mobile && (
+                  <div className="flex items-center space-x-1">
+                    <Phone className="w-3.5 h-3.5 text-cyan-500" />
+                    <span>M: {lead.mobile}</span>
+                  </div>
+                )}
+                {lead.city && (
+                  <div className="flex items-center space-x-1">
+                    <MapPin className="w-3.5 h-3.5 text-slate-500" />
+                    <span>
+                      {lead.city}
+                      {lead.state ? `, ${lead.state}` : ''}
+                      {lead.country ? `, ${lead.country}` : ''}
+                    </span>
+                  </div>
+                )}
                 <div className="flex items-center space-x-1 font-mono text-[11px]">
                   <span>Source: {lead.source}</span>
                 </div>
@@ -164,9 +232,60 @@ export const LeadDetailPage: React.FC = () => {
           </div>
         </div>
 
+        {/* Lead Business & Qualification Details */}
+        {(lead.annualRevenue || lead.numberOfEmployees || lead.website || lead.description) && (
+          <div className="mt-5 pt-4 border-t border-slate-800/80 grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+            {lead.annualRevenue && (
+              <div>
+                <span className="text-[10px] text-slate-500 font-mono uppercase block">Annual Revenue</span>
+                <span className="text-slate-200 font-mono font-semibold">
+                  {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(lead.annualRevenue)}
+                </span>
+              </div>
+            )}
+            {lead.numberOfEmployees && (
+              <div>
+                <span className="text-[10px] text-slate-500 font-mono uppercase block">Team Size</span>
+                <span className="text-slate-200 font-semibold">{lead.numberOfEmployees} Employees</span>
+              </div>
+            )}
+            {lead.website && (
+              <div>
+                <span className="text-[10px] text-slate-500 font-mono uppercase block">Website</span>
+                <a
+                  href={lead.website.startsWith('http') ? lead.website : `https://${lead.website}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-cyan-400 hover:underline truncate block"
+                >
+                  {lead.website.replace(/^https?:\/\//, '')}
+                </a>
+              </div>
+            )}
+            {lead.owner && (
+              <div>
+                <span className="text-[10px] text-slate-500 font-mono uppercase block">Lead Owner</span>
+                <span className="text-slate-200">
+                  {lead.owner.firstName} {lead.owner.lastName}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Lead Description Note */}
+        {lead.description && (
+          <div className="mt-4 p-3 rounded-xl bg-slate-900/60 border border-slate-800/80 text-xs text-slate-300">
+            <span className="text-[10px] text-slate-400 font-mono uppercase block mb-1">
+              Description & Requirements
+            </span>
+            <p className="whitespace-pre-line leading-relaxed">{lead.description}</p>
+          </div>
+        )}
+
         {/* AI Scoring Summary */}
         {lead.scoreExplanation && (
-          <div className="mt-5 p-3 rounded-xl bg-slate-900/80 border border-slate-800 text-xs text-slate-300">
+          <div className="mt-4 p-3 rounded-xl bg-slate-900/80 border border-slate-800 text-xs text-slate-300">
             <span className="font-mono text-cyan-400 font-semibold uppercase text-[10px] block mb-1">
               AI Scoring Analysis
             </span>

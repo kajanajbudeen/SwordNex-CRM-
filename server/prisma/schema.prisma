@@ -29,11 +29,16 @@ enum LeadPriority {
 }
 
 enum LeadSource {
+  ADVERTISEMENT
   WEBSITE
   REFERRAL
-  LINKEDIN
   COLD_CALL
+  TRADE_SHOW
+  SOCIAL_MEDIA
+  PARTNER
+  EMAIL_CAMPAIGN
   CAMPAIGN
+  LINKEDIN
   API
   EVENT
   OTHER
@@ -303,16 +308,42 @@ model Lead {
   firstName       String
   lastName        String
   email           String?
+  secondaryEmail  String?
   phone           String?
+  mobile          String?
+  fax             String?
   company         String?
   title           String?
+  website         String?
+  skypeId         String?
+  twitterHandle   String?
+  avatarUrl       String?
   status          LeadStatus    @default(NEW)
   priority        LeadPriority  @default(MEDIUM)
   source          LeadSource    @default(WEBSITE)
+  industry        String?
+  annualRevenue   Float?
+  numberOfEmployees Int?
+  rating          String?       // HOT, WARM, COLD
+  emailOptOut     Boolean       @default(false)
   score           Int           @default(50)
   scoreExplanation String?
   scoreConfidence Float?        @default(0.85)
   ownerId         String?
+
+  // Address Information
+  country         String?
+  address         String?
+  street          String?
+  city            String?
+  state           String?
+  zipCode         String?
+  latitude        Float?
+  longitude       Float?
+
+  // Description Information
+  description     String?       @db.Text
+
   customFields    Json?         @default("{}")
   tags            String[]      @default([])
   convertedAt     DateTime?

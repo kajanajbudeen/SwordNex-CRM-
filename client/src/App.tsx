@@ -10,6 +10,7 @@ import { RegisterPage } from './pages/auth/RegisterPage';
 import { DashboardPage } from './pages/dashboard/DashboardPage';
 import { LeadsPage } from './pages/leads/LeadsPage';
 import { LeadDetailPage } from './pages/leads/LeadDetailPage';
+import { LeadFormPage } from './pages/leads/LeadFormPage';
 import { DealsKanbanPage } from './pages/deals/DealsKanbanPage';
 import { ContactsPage } from './pages/contacts/ContactsPage';
 import { CompaniesPage } from './pages/companies/CompaniesPage';
@@ -112,7 +113,9 @@ export const App: React.FC = () => {
               <Route index element={<Navigate to="/dashboard" replace />} />
               <Route path="dashboard" element={<DashboardPage />} />
               <Route path="leads" element={<LeadsPage />} />
+              <Route path="leads/new" element={<LeadFormPage mode="create" />} />
               <Route path="leads/:id" element={<LeadDetailPage />} />
+              <Route path="leads/:id/edit" element={<LeadFormPage mode="edit" />} />
               <Route path="deals" element={<DealsKanbanPage />} />
               <Route path="contacts" element={<ContactsPage />} />
               <Route path="companies" element={<CompaniesPage />} />

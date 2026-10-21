@@ -15,6 +15,7 @@ import {
   Building,
   RefreshCw,
   Download,
+  Edit3,
 } from 'lucide-react';
 import { apiClient } from '../../api/client';
 
@@ -170,7 +171,7 @@ export const LeadsPage: React.FC = () => {
           </button>
 
           <button
-            onClick={() => setShowCreateModal(true)}
+            onClick={() => navigate('/leads/new')}
             className="px-3.5 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs flex items-center space-x-1.5 shadow-glow-cyan transition"
           >
             <Plus className="w-4 h-4" />
@@ -341,6 +342,13 @@ export const LeadsPage: React.FC = () => {
                             <span>Convert</span>
                           </button>
                         )}
+                        <button
+                          onClick={() => navigate(`/leads/${lead.id}/edit`)}
+                          title="Edit Lead"
+                          className="p-1 text-slate-400 hover:text-cyan-400 rounded hover:bg-slate-800 transition"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
                         <button
                           onClick={(e) => handleRescore(lead.id, e)}
                           title="Recalculate AI Score"

@@ -10,6 +10,9 @@ router.use(authenticate, resolveTenant);
 
 router.get('/', LeadController.list);
 router.get('/export/csv', requirePermission('LEADS', 'EXPORT'), LeadController.exportCsv);
+router.post('/upload-image', LeadController.uploadImage);
+router.get('/layout/config', LeadController.getLayoutConfig);
+router.put('/layout/config', LeadController.updateLayoutConfig);
 router.post('/', LeadController.create);
 router.get('/:id', LeadController.getById);
 router.patch('/:id', LeadController.update);
