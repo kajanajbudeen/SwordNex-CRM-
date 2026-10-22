@@ -16,6 +16,9 @@ export const SYSTEM_MODULES = [
   'AI_CENTER',
   'COMMS',
   'TICKETS',
+  'PRODUCTS',
+  'QUOTES',
+  'INVOICES',
 ] as const;
 
 export const SYSTEM_ACTIONS = [

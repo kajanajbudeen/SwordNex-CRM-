@@ -12,6 +12,10 @@ import { LeadsPage } from './pages/leads/LeadsPage';
 import { LeadDetailPage } from './pages/leads/LeadDetailPage';
 import { LeadFormPage } from './pages/leads/LeadFormPage';
 import { DealsKanbanPage } from './pages/deals/DealsKanbanPage';
+import { ProductsPage } from './pages/products/ProductsPage';
+import { QuotesPage } from './pages/quotes/QuotesPage';
+import { QuoteDetailPage } from './pages/quotes/QuoteDetailPage';
+import { CustomerInvoicesPage } from './pages/customer-invoices/CustomerInvoicesPage';
 import { ContactsPage } from './pages/contacts/ContactsPage';
 import { CompaniesPage } from './pages/companies/CompaniesPage';
 import { TasksPage } from './pages/tasks/TasksPage';
@@ -119,6 +123,10 @@ export const App: React.FC = () => {
               <Route path="leads/:id" element={<LeadDetailPage />} />
               <Route path="leads/:id/edit" element={<LeadFormPage mode="edit" />} />
               <Route path="deals" element={<DealsKanbanPage />} />
+              <Route path="products" element={<ProductsPage />} />
+              <Route path="quotes" element={<QuotesPage />} />
+              <Route path="quotes/:id" element={<QuoteDetailPage />} />
+              <Route path="customer-invoices" element={<CustomerInvoicesPage />} />
               <Route path="contacts" element={<ContactsPage />} />
               <Route path="companies" element={<CompaniesPage />} />
               <Route path="tasks" element={<TasksPage />} />

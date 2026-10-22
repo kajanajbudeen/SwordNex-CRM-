@@ -181,6 +181,12 @@ model Organization {
   importJobs      ImportJob[]
   tickets         Ticket[]
   salesTargets    SalesTarget[]
+  products        Product[]
+  quotes          Quote[]
+  salesOrders     SalesOrder[]
+  customerInvoices CustomerInvoice[]
+  customerPayments CustomerPayment[]
+  creditNotes     CreditNote[]
 
   @@index([slug])
 }
@@ -221,6 +227,9 @@ model User {
   createdTickets  Ticket[]      @relation("TicketCreator")
   ticketComments  TicketComment[] @relation("TicketCommentAuthor")
   salesTargets    SalesTarget[] @relation("UserSalesTarget")
+  createdQuotes   Quote[]       @relation("QuoteCreator")
+  createdOrders   SalesOrder[]  @relation("SalesOrderCreator")
+  createdInvoices CustomerInvoice[] @relation("InvoiceCreator")
 
   @@index([email])
 }
@@ -404,6 +413,9 @@ model Company {
   activities     Activity[]
   attachments    Attachment[]
   tickets        Ticket[]
+  quotes         Quote[]
+  salesOrders    SalesOrder[]
+  customerInvoices CustomerInvoice[]
 
   @@index([organizationId])
   @@index([organizationId, name])
@@ -436,6 +448,9 @@ model Contact {
   conversations   Conversation[]
   attachments     Attachment[]
   tickets         Ticket[]
+  quotes          Quote[]
+  salesOrders     SalesOrder[]
+  customerInvoices CustomerInvoice[]
 
   @@index([organizationId])
   @@index([organizationId, email])
@@ -511,6 +526,9 @@ model Deal {
   activities        Activity[]
   tasks             Task[]
   attachments       Attachment[]
+  quotes            Quote[]
+  salesOrders       SalesOrder[]
+  customerInvoices  CustomerInvoice[]
 
   @@index([organizationId])
   @@index([organizationId, status])
@@ -1149,5 +1167,309 @@ model SalesTarget {
   @@index([organizationId])
   @@index([organizationId, period])
   @@index([userId])
+}
+
+// -------------------------------------------------------------
+// Commercial CPQ & Customer Invoicing (Phase 2)
+// -------------------------------------------------------------
+
+enum QuoteStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  DECLINED
+  EXPIRED
+}
+
+enum SalesOrderStatus {
+  DRAFT
+  CONFIRMED
+  IN_PROGRESS
+  FULFILLED
+  CANCELLED
+}
+
+enum CustomerInvoiceStatus {
+  DRAFT
+  SENT
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  VOID
+}
+
+enum PaymentMethod {
+  BANK_TRANSFER
+  CREDIT_CARD
+  DEBIT_CARD
+  UPI
+  CASH
+  CHECK
+  STRIPE
+  RAZORPAY
+  OTHER
+}
+
+model Product {
+  id             String         @id @default(uuid())
+  organizationId String
+  name           String
+  sku            String
+  description    String?
+  category       String         @default("GENERAL") // HARDWARE, SOFTWARE, SERVICE, SUBSCRIPTION, GENERAL
+  unitPrice      Float          @default(0.0)
+  costPrice      Float?         @default(0.0)
+  currency       String         @default("USD")
+  taxRate        Float          @default(0.0) // percentage e.g. 18.0
+  unit           String         @default("UNIT") // UNIT, HOUR, MONTH, LICENSE, PROJECT
+  isActive       Boolean        @default(true)
+  customFields   Json?          @default("{}")
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  quoteItems     QuoteItem[]
+  orderItems     SalesOrderItem[]
+  invoiceItems   CustomerInvoiceItem[]
+
+  @@unique([organizationId, sku])
+  @@index([organizationId])
+  @@index([organizationId, category])
+  @@index([organizationId, isActive])
+}
+
+model Quote {
+  id              String            @id @default(uuid())
+  organizationId  String
+  quoteNumber     String
+  subject         String
+  dealId          String?
+  contactId       String?
+  companyId       String?
+  createdById     String?
+  status          QuoteStatus       @default(DRAFT)
+  validUntil      DateTime?
+  subtotal        Float             @default(0.0)
+  discountPercent Float             @default(0.0)
+  discountAmount  Float             @default(0.0)
+  taxAmount       Float             @default(0.0)
+  total           Float             @default(0.0)
+  currency        String            @default("USD")
+  terms           String?
+  notes           String?
+  acceptedAt      DateTime?
+  declinedAt      DateTime?
+  declinedReason  String?
+  customFields    Json?             @default("{}")
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  organization    Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  deal            Deal?             @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  contact         Contact?          @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  company         Company?          @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  createdBy       User?             @relation("QuoteCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  items           QuoteItem[]
+  salesOrders     SalesOrder[]
+  invoices        CustomerInvoice[]
+
+  @@unique([organizationId, quoteNumber])
+  @@index([organizationId])
+  @@index([organizationId, status])
+  @@index([dealId])
+  @@index([contactId])
+  @@index([companyId])
+}
+
+model QuoteItem {
+  id          String   @id @default(uuid())
+  quoteId     String
+  productId   String?
+  name        String
+  description String?
+  quantity    Float    @default(1.0)
+  unitPrice   Float    @default(0.0)
+  discount    Float    @default(0.0) // line item discount %
+  taxRate     Float    @default(0.0) // line item tax rate %
+  total       Float    @default(0.0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  quote       Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  product     Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([quoteId])
+  @@index([productId])
+}
+
+model SalesOrder {
+  id              String            @id @default(uuid())
+  organizationId  String
+  orderNumber     String
+  quoteId         String?
+  dealId          String?
+  contactId       String?
+  companyId       String?
+  createdById     String?
+  status          SalesOrderStatus  @default(CONFIRMED)
+  orderDate       DateTime          @default(now())
+  deliveryDate    DateTime?
+  subtotal        Float             @default(0.0)
+  discountAmount  Float             @default(0.0)
+  taxAmount       Float             @default(0.0)
+  total           Float             @default(0.0)
+  currency        String            @default("USD")
+  terms           String?
+  notes           String?
+  customFields    Json?             @default("{}")
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  organization    Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  quote           Quote?            @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  deal            Deal?             @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  contact         Contact?          @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  company         Company?          @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  createdBy       User?             @relation("SalesOrderCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  items           SalesOrderItem[]
+  invoices        CustomerInvoice[]
+
+  @@unique([organizationId, orderNumber])
+  @@index([organizationId])
+  @@index([organizationId, status])
+  @@index([quoteId])
+  @@index([dealId])
+  @@index([contactId])
+  @@index([companyId])
+}
+
+model SalesOrderItem {
+  id           String     @id @default(uuid())
+  salesOrderId String
+  productId    String?
+  name         String
+  description  String?
+  quantity     Float      @default(1.0)
+  unitPrice    Float      @default(0.0)
+  discount     Float      @default(0.0)
+  taxRate      Float      @default(0.0)
+  total        Float      @default(0.0)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  salesOrder   SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  product      Product?   @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([salesOrderId])
+  @@index([productId])
+}
+
+model CustomerInvoice {
+  id              String                @id @default(uuid())
+  organizationId  String
+  invoiceNumber   String
+  salesOrderId    String?
+  quoteId         String?
+  dealId          String?
+  contactId       String?
+  companyId       String?
+  createdById     String?
+  status          CustomerInvoiceStatus @default(DRAFT)
+  issueDate       DateTime              @default(now())
+  dueDate         DateTime
+  paidAt          DateTime?
+  subtotal        Float                 @default(0.0)
+  discountAmount  Float                 @default(0.0)
+  taxAmount       Float                 @default(0.0)
+  total           Float                 @default(0.0)
+  amountPaid      Float                 @default(0.0)
+  amountDue       Float                 @default(0.0)
+  currency        String                @default("USD")
+  terms           String?
+  notes           String?
+  customFields    Json?                 @default("{}")
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  organization    Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  salesOrder      SalesOrder?           @relation(fields: [salesOrderId], references: [id], onDelete: SetNull)
+  quote           Quote?                @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  deal            Deal?                 @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  contact         Contact?              @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  company         Company?              @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  createdBy       User?                 @relation("InvoiceCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  items           CustomerInvoiceItem[]
+  payments        CustomerPayment[]
+  creditNotes     CreditNote[]
+
+  @@unique([organizationId, invoiceNumber])
+  @@index([organizationId])
+  @@index([organizationId, status])
+  @@index([organizationId, dueDate])
+  @@index([contactId])
+  @@index([companyId])
+  @@index([dealId])
+}
+
+model CustomerInvoiceItem {
+  id                String          @id @default(uuid())
+  customerInvoiceId String
+  productId         String?
+  name              String
+  description       String?
+  quantity          Float           @default(1.0)
+  unitPrice         Float           @default(0.0)
+  discount          Float           @default(0.0)
+  taxRate           Float           @default(0.0)
+  total             Float           @default(0.0)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  customerInvoice   CustomerInvoice @relation(fields: [customerInvoiceId], references: [id], onDelete: Cascade)
+  product           Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([customerInvoiceId])
+  @@index([productId])
+}
+
+model CustomerPayment {
+  id                String          @id @default(uuid())
+  organizationId    String
+  customerInvoiceId String
+  amount            Float
+  currency          String          @default("USD")
+  paymentDate       DateTime        @default(now())
+  paymentMethod     PaymentMethod   @default(BANK_TRANSFER)
+  referenceNumber   String?
+  notes             String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  organization      Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customerInvoice   CustomerInvoice @relation(fields: [customerInvoiceId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([customerInvoiceId])
+}
+
+model CreditNote {
+  id                String          @id @default(uuid())
+  organizationId    String
+  creditNoteNumber  String
+  customerInvoiceId String
+  amount            Float
+  currency          String          @default("USD")
+  reason            String
+  status            String          @default("OPEN")
+  issuedAt          DateTime        @default(now())
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  organization      Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customerInvoice   CustomerInvoice @relation(fields: [customerInvoiceId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, creditNoteNumber])
+  @@index([organizationId])
+  @@index([customerInvoiceId])
 }
 

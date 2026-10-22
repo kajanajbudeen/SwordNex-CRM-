@@ -20,6 +20,9 @@ import {
   ChevronDown,
   Crown,
   LifeBuoy,
+  Package,
+  FileText,
+  Receipt,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -32,6 +35,9 @@ export const Sidebar: React.FC = () => {
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, module: null },
     { label: 'Leads', path: '/leads', icon: Users, module: 'LEADS' },
     { label: 'Deals & Pipeline', path: '/deals', icon: Kanban, module: 'DEALS' },
+    { label: 'Products & Pricing', path: '/products', icon: Package, module: 'PRODUCTS' },
+    { label: 'Quotations & CPQ', path: '/quotes', icon: FileText, module: 'QUOTES' },
+    { label: 'Customer Invoices', path: '/customer-invoices', icon: Receipt, module: 'INVOICES' },
     { label: 'Contacts', path: '/contacts', icon: Briefcase, module: 'CONTACTS' },
     { label: 'Companies', path: '/companies', icon: Building2, module: 'COMPANIES' },
     { label: 'Tasks & Follow-ups', path: '/tasks', icon: CheckSquare, module: 'TASKS' },

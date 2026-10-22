@@ -8,7 +8,7 @@
 > **API Base URL:** `http://localhost:5000/api/v1`  
 > **Frontend URL:** `http://localhost:5173`  
 > **Master HQ Portal:** `http://localhost:5173/swordnex-master/login`  
-> **Quality Gate Status:** 90 / 90 Automated Tests Passing (100% Pass Rate across 10 Test Files)  
+> **Quality Gate Status:** 116 / 116 Automated Tests Passing (100% Pass Rate across 12 Test Files)  
 
 ---
 
@@ -115,7 +115,7 @@ flowchart TD
 
 ---
 
-## 4. Complete Functional Modules Breakdown (14 Modules)
+## 4. Complete Functional Modules Breakdown (18 Modules)
 
 ### 1. Executive AI Cockpit & Dashboard (`/dashboard`)
 - Real-time revenue velocity, win rates, active pipeline totals, overdue tasks, and lead volume.
@@ -201,6 +201,34 @@ flowchart TD
 - Dynamic custom role builder with 8-action permission toggles across 12 modules.
 - Immutable security audit logs recording all organizational mutations.
 
+### 15. Customer Support Helpdesk & Service Cloud (`/tickets`, `/tickets/:id`)
+- Omnichannel ticket management across Email, Phone, Chat, Portal, and Web Form.
+- Configurable priority tiers (`LOW`, `MEDIUM`, `HIGH`, `URGENT`) with SLA resolution status tracking (`NEW`, `OPEN`, `PENDING_CUSTOMER`, `RESOLVED`, `CLOSED`).
+- Deep relational linking to `Contact`, `Company`, and internal `assignee`.
+- Rich discussion thread supporting public customer comments and private internal agent notes.
+- **AI-Powered Support Copilot**: One-click AI response draft generation grounded in ticket context, customer sentiment, and historical conversation.
+
+### 16. Sales Performance, Quotas & Forecasting (`/deals`, `/reports`)
+- Individual and team monthly sales target quotas (`SalesTarget`) with real-time attainment velocity meters.
+- Multi-category deal forecasting (`PIPELINE`, `BEST_CASE`, `COMMIT`, `CLOSED`) based on weighted probability.
+- Win/Loss root cause categorization (`PRICING`, `FEATURE_GAP`, `COMPETITOR`, `TIMING`, `BUDGET`, `RELATIONSHIP`, `OTHER`) for closed opportunities.
+- **My Day Daily Cockpit**: Consolidated daily agenda aggregating overdue tasks, urgent assigned tickets, closing deals, and hot leads into an actionable morning brief.
+- Real-time database-backed monthly revenue trends and RFC 4180 analytics CSV export.
+
+### 17. Commercial CPQ (Configure, Price, Quote) & Products Catalog (`/products`, `/quotes`, `/quotes/:id`)
+- Master Product Catalog with unique SKU, standard unit pricing, currency, tax rates, and categorization.
+- Interactive multi-line CPQ Quotation builder calculating automated line-item subtotals, configurable discount percentages, tax amounts, and grand totals.
+- Quote status lifecycle (`DRAFT` → `SENT` → `ACCEPTED` / `REJECTED` / `EXPIRED`).
+- **1-Click Atomic Conversion Pipeline**: Instant conversion from accepted `Quote` to fulfillment `SalesOrder` or customer-facing `CustomerInvoice`.
+- Print-ready and client-ready quote visual previews with payment terms and line item tables.
+
+### 18. Customer Invoicing, Accounts Receivable & Aging (`/customer-invoices`)
+- B2B customer-facing commercial tax invoicing completely decoupled from SwordNex SaaS platform subscription billing.
+- Standard invoice numbering (`CINV-YYYY-XXXXX`) with terms, due dates, subtotal, tax calculation, and balance due tracking.
+- Status management (`DRAFT`, `SENT`, `PAID`, `PARTIALLY_PAID`, `OVERDUE`, `VOID`).
+- **Accounts Receivable Aging Ledger**: Automated aging classification into 4 standard accounting buckets: `0-30 days`, `31-60 days`, `61-90 days`, and `90+ days overdue`.
+- Payment recording engine (`CustomerPayment`) with multiple payment methods (`BANK_TRANSFER`, `CREDIT_CARD`, `UPI`, `CHEQUE`, `CASH`, `OTHER`) automatically adjusting `amountPaid`, `amountDue`, and invoice status.
+
 ---
 
 ## 5. Security & Authentication Architecture (Phase 2 Enhanced)
@@ -285,12 +313,14 @@ client/public/
 ## 9. Quality Gates & Automated Test Coverage
 
 ```
-Test Files  10 passed (10)
-     Tests  90 passed (90)
-  Duration  17.26s
+Test Files  12 passed (12)
+     Tests  116 passed (116)
+  Duration  18.70s
 ```
 
 ### Verified Test Suites:
+- `tests/tickets-sales-phase1.test.ts` (14 tests) — Complete verification of Customer Support tickets (creation, status update, priority, multi-channel tagging, internal comments, AI response drafting) and Sales Performance (monthly targets, win/loss categorization, My Day cockpit agenda, and database-backed revenue forecasts).
+- `tests/commercial-cpq-finance.test.ts` (12 tests) — Complete verification of CPQ Product Catalog (SKU, unit pricing, tax rates), Quotations (multi-item calculations, discounts, taxes), 1-click conversions to Sales Orders and Customer Invoices, Accounts Receivable aging summaries (0-30, 31-60, 61-90, 90+ days), and payment recordings with automatic balance adjustments.
 - `tests/lead-import-export.test.ts` (20 tests) — Complete import/export feature verification: CSV & Excel sample templates, MIME type and format parsing, intelligent column auto-mapping, required and format validation, Unicode character fidelity, duplicate detection strategies (`SKIP`, `UPDATE`, `IMPORT_ALL`), error report generation, formula injection neutralization (`=`, `+`, `-`, `@`), scopes (`ALL`, `FILTERED`, `SELECTED`, `DATE_RANGE`), tenant isolation, foreign owner rejection, and RBAC permission enforcement.
 - `tests/lead-layout.test.ts` (6 tests) — Lead creation, editing, dynamic layout configuration persistence, custom fields validation, and foreign organization owner assignment rejection.
 - `tests/phase3-modules-ai.test.ts` (10 tests) — RFC 4180 CSV exports for Leads, Contacts, and Deals with RBAC checks; inbound webhook status callbacks; anti-spam opt-out suppression; and dynamic AI meeting summarization.
@@ -434,4 +464,89 @@ The system supports mapping across all 30 Lead model attributes:
 | `GET` | `/api/v1/leads/import/jobs/:id/error-report` | `LEADS:VIEW` | Download CSV or Excel error report containing row numbers and error reasons. |
 | `POST` | `/api/v1/leads/export` | `LEADS:EXPORT` | Advanced export supporting scopes (`ALL`, `FILTERED`, `SELECTED`, `DATE_RANGE`) and custom column subsets. |
 | `GET` | `/api/v1/leads/export/csv` | `LEADS:EXPORT` | Legacy direct CSV download respecting active query filters. |
+
+---
+
+## 11. Customer Support Helpdesk Architecture (Phase 1)
+
+### 11.1. Data Model & SLA Hierarchy
+The Customer Support subsystem provides multi-channel customer ticketing linked to accounts, contacts, and agents:
+- **`Ticket` Model**: `ticketNumber` (`TICK-XXXXX`), `subject`, `description`, `status` (`NEW`, `OPEN`, `PENDING_CUSTOMER`, `RESOLVED`, `CLOSED`), `priority` (`LOW`, `MEDIUM`, `HIGH`, `URGENT`), `channel` (`EMAIL`, `PHONE`, `CHAT`, `PORTAL`, `WEB_FORM`), `dueDate`, `resolvedAt`.
+- **`TicketComment` Model**: Discussion timeline with `isInternal` flag separating client-facing messages from internal collaboration notes.
+- **Relational Integrity**: Foreign keys scoped to `organizationId`, with optional bindings to `contactId`, `companyId`, and `assigneeId`.
+
+### 11.2. Support API Endpoints
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/v1/tickets` | Filterable ticket list (status, priority, assignee, search) |
+| `POST` | `/api/v1/tickets` | Create support ticket with automatic ticket number generation |
+| `GET` | `/api/v1/tickets/:id` | Full ticket details with contact, company, assignee, and comments |
+| `PATCH` | `/api/v1/tickets/:id` | Update status, priority, assignment, or resolution notes |
+| `POST` | `/api/v1/tickets/:id/comments` | Add public comment or internal agent note |
+| `POST` | `/api/v1/tickets/:id/draft-reply` | AI-assisted response drafting grounded in ticket context |
+
+---
+
+## 12. Commercial CPQ & Customer Invoicing Subsystem Architecture (Phase 2)
+
+### 12.1. Architectural Distinction: SaaS Billing vs. Customer B2B Invoicing
+A foundational principle of SwordNex AI CRM is the strict structural separation between platform billing and tenant customer commercial billing:
+
+```mermaid
+graph TD
+    subgraph SaaS_Platform_Billing ["SwordNex SaaS Subscription Billing (Platform Level)"]
+        Sub["Subscription (Standard / Premium)"]
+        Pln["Plan (Quotas, INR pricing)"]
+        Pay["Payment (Razorpay orderId, HMAC SHA256)"]
+        Inv["Invoice (Platform GST Tax Receipt INV-YYYY-XXXXX)"]
+    end
+
+    subgraph B2B_Commercial_CPQ ["Tenant B2B Commercial CPQ & Invoicing (Tenant Level)"]
+        Prod["Product Catalog (SKU, Price, Tax)"]
+        Quot["Quote (Multi-line CPQ QT-YYYY-XXXXX)"]
+        Order["SalesOrder (Fulfillment Order SO-YYYY-XXXXX)"]
+        CInv["CustomerInvoice (Commercial Tax Invoice CINV-YYYY-XXXXX)"]
+        CPay["CustomerPayment (Bank Transfer, UPI, Cheque, Card)"]
+        Aging["Accounts Receivable Aging (0-30, 31-60, 61-90, 90+ Days)"]
+    end
+
+    Quot -->|1-Click Convert| Order
+    Quot -->|1-Click Convert| CInv
+    Order -->|Generate Invoice| CInv
+    CInv --> CPay
+    CInv --> Aging
+```
+
+### 12.2. CPQ & Commercial Finance Data Models
+- **`Product`**: `sku`, `name`, `description`, `category`, `unitPrice`, `taxRate` (default 18%), `currency` (default INR), `isActive`.
+- **`Quote` & `QuoteItem`**: Full multi-item CPQ with unit prices, quantity, discount %, calculated line subtotals, tax amounts, grand total, validity expiry, terms, and conversion tracking flags (`convertedToOrderId`, `convertedToInvoiceId`).
+- **`SalesOrder` & `SalesOrderItem`**: Commercial order commitment binding customer `contactId` / `companyId`, status (`DRAFT`, `CONFIRMED`, `PROCESSING`, `SHIPPED`, `DELIVERED`, `CANCELLED`).
+- **`CustomerInvoice` & `CustomerInvoiceItem`**: Commercial customer tax invoice with `subtotal`, `taxAmount`, `totalAmount`, `amountPaid`, `amountDue`, `dueDate`, and `status`.
+- **`CustomerPayment`**: Transaction ledger tracking customer receipts with method (`BANK_TRANSFER`, `CREDIT_CARD`, `UPI`, `CHEQUE`, `CASH`, `OTHER`), reference notes, and date.
+- **`CreditNote`**: Customer commercial credit adjustment ledger.
+
+### 12.3. Accounts Receivable Aging Engine
+Accounts Receivable is computed directly from active unpaid database invoices (`status != 'PAID' AND status != 'VOID'`):
+- **Current (0–30 Days)**: Due date is either in the future or up to 30 days past due.
+- **31–60 Days Overdue**: Due date is 31 to 60 days past due.
+- **61–90 Days Overdue**: Due date is 61 to 90 days past due.
+- **90+ Days Overdue**: Due date is greater than 90 days past due.
+- Summaries yield real-time metrics for total outstanding receivables, total invoices, and risk breakdown.
+
+### 12.4. CPQ & Finance API Endpoints
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/v1/products` | Retrieve catalog products with search and active filter |
+| `POST` | `/api/v1/products` | Create new catalog item with SKU and tax rate |
+| `GET` | `/api/v1/quotes` | List tenant quotations with status and total value |
+| `POST` | `/api/v1/quotes` | Create quotation with multi-item calculations |
+| `GET` | `/api/v1/quotes/:id` | Quote detail with items, customer entity, and conversions |
+| `POST` | `/api/v1/quotes/:id/convert-to-order` | 1-click conversion from Quote to confirmed Sales Order |
+| `POST` | `/api/v1/quotes/:id/convert-to-invoice` | 1-click conversion from Quote to Customer Invoice |
+| `GET` | `/api/v1/customer-invoices` | List customer commercial invoices with balance tracking |
+| `GET` | `/api/v1/customer-invoices/aging-summary` | Real-time Accounts Receivable aging buckets (0-30, 31-60, 61-90, 90+) |
+| `GET` | `/api/v1/customer-invoices/:id` | Invoice details with line items and customer payment ledger |
+| `POST` | `/api/v1/customer-invoices/:id/payments` | Record customer payment, recalculating paid and due balances |
 
