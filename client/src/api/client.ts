@@ -91,6 +91,43 @@ export const apiClient = {
     return this.request<T>(endpoint, { method: 'DELETE', headers });
   },
 
+  async upload<T = any>(endpoint: string, formData: FormData): Promise<T> {
+    const token = localStorage.getItem('sn_token');
+    const orgId = localStorage.getItem('sn_org_id');
+
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    if (orgId) headers['x-organization-id'] = orgId;
+
+    let res: Response;
+    try {
+      res = await fetch(`${API_BASE}${endpoint}`, {
+        method: 'POST',
+        headers,
+        body: formData,
+      });
+    } catch (networkError: any) {
+      throw new ApiError(
+        `Unable to reach backend server at ${API_BASE}. Please ensure backend is running.`,
+        0,
+        networkError
+      );
+    }
+
+    const data = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      if (res.status === 401 && !endpoint.includes('/auth/login')) {
+        localStorage.removeItem('sn_token');
+        localStorage.removeItem('sn_user');
+        window.location.href = '/login';
+      }
+      throw new ApiError(data?.error || data?.message || 'Upload failed', res.status, data?.details);
+    }
+
+    return data;
+  },
+
   async download(endpoint: string, fallbackFilename: string) {
     const token = localStorage.getItem('sn_token');
     const orgId = localStorage.getItem('sn_org_id');
@@ -105,14 +142,62 @@ export const apiClient = {
       throw new Error(errorData.error || errorData.message || 'Download failed');
     }
 
+    // Read filename from Content-Disposition if present
+    const disposition = res.headers.get('content-disposition');
+    let filename = fallbackFilename;
+    if (disposition && disposition.includes('filename=')) {
+      const match = disposition.match(/filename="?([^";]+)"?/);
+      if (match && match[1]) filename = match[1];
+    }
+
     const blob = await res.blob();
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = fallbackFilename;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  },
+
+  async downloadPost(endpoint: string, body: any, fallbackFilename: string) {
+    const token = localStorage.getItem('sn_token');
+    const orgId = localStorage.getItem('sn_org_id');
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    if (orgId) headers['x-organization-id'] = orgId;
+
+    const res = await fetch(`${API_BASE}${endpoint}`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.error || errorData.message || 'Download failed');
+    }
+
+    const disposition = res.headers.get('content-disposition');
+    let filename = fallbackFilename;
+    if (disposition && disposition.includes('filename=')) {
+      const match = disposition.match(/filename="?([^";]+)"?/);
+      if (match && match[1]) filename = match[1];
+    }
+
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     window.URL.revokeObjectURL(url);
     document.body.removeChild(a);
   },
 };
+

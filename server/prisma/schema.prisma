@@ -178,6 +178,9 @@ model Organization {
   auditLogs       AuditLog[]
   consentRecords  ConsentRecord[]
   attachments     Attachment[]
+  importJobs      ImportJob[]
+  tickets         Ticket[]
+  salesTargets    SalesTarget[]
 
   @@index([slug])
 }
@@ -213,6 +216,11 @@ model User {
   auditLogs       AuditLog[]
   teamMemberships TeamMember[]
   ledTeams        Team[]        @relation("TeamLeader")
+  importJobs      ImportJob[]
+  assignedTickets Ticket[]      @relation("TicketAssignee")
+  createdTickets  Ticket[]      @relation("TicketCreator")
+  ticketComments  TicketComment[] @relation("TicketCommentAuthor")
+  salesTargets    SalesTarget[] @relation("UserSalesTarget")
 
   @@index([email])
 }
@@ -364,6 +372,9 @@ model Lead {
   @@index([organizationId, status])
   @@index([organizationId, ownerId])
   @@index([organizationId, score])
+  @@index([organizationId, email])
+  @@index([organizationId, phone])
+  @@index([organizationId, mobile])
   @@index([email])
 }
 
@@ -392,6 +403,7 @@ model Company {
   deals          Deal[]
   activities     Activity[]
   attachments    Attachment[]
+  tickets        Ticket[]
 
   @@index([organizationId])
   @@index([organizationId, name])
@@ -423,6 +435,7 @@ model Contact {
   tasks           Task[]
   conversations   Conversation[]
   attachments     Attachment[]
+  tickets         Ticket[]
 
   @@index([organizationId])
   @@index([organizationId, email])
@@ -476,6 +489,8 @@ model Deal {
   actualCloseDate   DateTime?
   status            DealStatus    @default(OPEN)
   winLossReason     String?
+  winLossCategory   String?
+  forecastCategory  String?       @default("PIPELINE")
   probability       Int           @default(20)
   healthScore       Int           @default(75) // 0 - 100
   healthSummary     String?
@@ -972,6 +987,7 @@ model Attachment {
   dealId         String?
   contactId      String?
   companyId      String?
+  ticketId       String?
   uploadedById   String?
   createdAt      DateTime     @default(now())
 
@@ -980,8 +996,158 @@ model Attachment {
   deal           Deal?        @relation(fields: [dealId], references: [id], onDelete: Cascade)
   contact        Contact?     @relation(fields: [contactId], references: [id], onDelete: Cascade)
   company        Company?     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  ticket         Ticket?      @relation(fields: [ticketId], references: [id], onDelete: Cascade)
 
   @@index([organizationId])
   @@index([leadId])
   @@index([dealId])
+  @@index([ticketId])
 }
+
+// -------------------------------------------------------------
+// Lead Import Jobs & History Tracking
+// -------------------------------------------------------------
+model ImportJob {
+  id              String       @id @default(uuid())
+  organizationId  String
+  userId          String?
+  fileName        String
+  fileSize        Int?
+  fileType        String?      // CSV, XLSX
+  status          String       @default("QUEUED") // QUEUED, PROCESSING, COMPLETED, COMPLETED_WITH_ERRORS, FAILED
+  totalRows       Int          @default(0)
+  validRows       Int          @default(0)
+  invalidRows     Int          @default(0)
+  createdCount    Int          @default(0)
+  updatedCount    Int          @default(0)
+  skippedCount    Int          @default(0)
+  failedCount     Int          @default(0)
+  strategy        String       @default("SKIP") // SKIP, UPDATE, IMPORT_ALL
+  mapping         Json?        @default("{}")
+  options         Json?        @default("{}")
+  errorReport     Json?        @default("[]")
+  summary         Json?        @default("{}")
+  startedAt       DateTime     @default(now())
+  completedAt     DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user            User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([organizationId, status])
+  @@index([organizationId, createdAt])
+}
+
+// -------------------------------------------------------------
+// Customer Support & Ticketing System (Phase 1)
+// -------------------------------------------------------------
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_ON_CUSTOMER
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TicketChannel {
+  EMAIL
+  PORTAL
+  PHONE
+  CHAT
+  WEB
+  OTHER
+}
+
+model Ticket {
+  id                  String         @id @default(uuid())
+  ticketNumber        String
+  organizationId      String
+  contactId           String?
+  companyId           String?
+  assignedToId        String?
+  createdById         String?
+  subject             String
+  description         String
+  status              TicketStatus   @default(OPEN)
+  priority            TicketPriority @default(MEDIUM)
+  channel             TicketChannel  @default(EMAIL)
+  category            String?        @default("GENERAL") // GENERAL, BILLING, TECHNICAL, PRODUCT, FEATURE_REQUEST
+  firstResponseDueAt  DateTime?
+  firstRespondedAt    DateTime?
+  resolutionDueAt     DateTime?
+  resolvedAt          DateTime?
+  closedAt            DateTime?
+  csatRating          Int?           // 1 to 5 stars
+  csatFeedback        String?
+  tags                String[]       @default([])
+  customFields        Json?          @default("{}")
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  organization        Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contact             Contact?       @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  company             Company?       @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  assignedTo          User?          @relation("TicketAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  createdBy           User?          @relation("TicketCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  comments            TicketComment[]
+  attachments         Attachment[]
+
+  @@unique([organizationId, ticketNumber])
+  @@index([organizationId])
+  @@index([organizationId, status])
+  @@index([organizationId, priority])
+  @@index([organizationId, assignedToId])
+  @@index([contactId])
+  @@index([companyId])
+}
+
+model TicketComment {
+  id             String       @id @default(uuid())
+  ticketId       String
+  authorId       String?
+  authorType     String       @default("AGENT") // AGENT, CUSTOMER, SYSTEM, AI_ASSISTANT
+  content        String
+  isInternal     Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  ticket         Ticket       @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author         User?        @relation("TicketCommentAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([ticketId])
+  @@index([authorId])
+}
+
+// -------------------------------------------------------------
+// Sales Targets & Quota Management (Phase 1)
+// -------------------------------------------------------------
+model SalesTarget {
+  id             String       @id @default(uuid())
+  organizationId String
+  userId         String?      // If null, organization-wide quota
+  period         String       // e.g. "2026-Q4", "2026-10"
+  targetAmount   Float
+  currency       String       @default("USD")
+  startDate      DateTime
+  endDate        DateTime
+  notes          String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User?        @relation("UserSalesTarget", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([organizationId, period])
+  @@index([userId])
+}
+

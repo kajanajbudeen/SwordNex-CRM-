@@ -28,6 +28,7 @@ import auditRoutes from './routes/audit.routes';
 import superAdminRoutes from './routes/superAdmin.routes';
 import roleRoutes from './routes/role.routes';
 import subscriptionRoutes from './routes/subscription.routes';
+import ticketRoutes from './routes/ticket.routes';
 import { requireActiveSubscription } from './middleware/subscription.middleware';
 import { authenticate } from './middleware/auth.middleware';
 import { resolveTenant } from './middleware/tenant.middleware';
@@ -106,6 +107,7 @@ export const createApp = (): Application => {
   app.use(`${prefix}/contacts`, authenticate, resolveTenant, requireActiveSubscription, contactRoutes);
   app.use(`${prefix}/companies`, authenticate, resolveTenant, requireActiveSubscription, companyRoutes);
   app.use(`${prefix}/tasks`, authenticate, resolveTenant, requireActiveSubscription, taskRoutes);
+  app.use(`${prefix}/tickets`, authenticate, resolveTenant, requireActiveSubscription, ticketRoutes);
   app.use(`${prefix}/activities`, authenticate, resolveTenant, requireActiveSubscription, activityRoutes);
   app.use(`${prefix}/comms`, commsRoutes);
   app.use(`${prefix}/campaigns`, campaignRoutes);

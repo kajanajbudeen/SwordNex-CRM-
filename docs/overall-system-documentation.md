@@ -8,9 +8,10 @@
 > **API Base URL:** `http://localhost:5000/api/v1`  
 > **Frontend URL:** `http://localhost:5173`  
 > **Master HQ Portal:** `http://localhost:5173/swordnex-master/login`  
-> **Quality Gate Status:** 64 / 64 Automated Tests Passing (100% Pass Rate across 8 Test Files)  
+> **Quality Gate Status:** 90 / 90 Automated Tests Passing (100% Pass Rate across 10 Test Files)  
 
 ---
+
 
 ## 1. Executive Summary & Brand Overview
 
@@ -121,11 +122,23 @@ flowchart TD
 - Interactive charts: Stage Volume Distribution and Acquisition Channel Attribution.
 - Contextual shortcuts to ask the AI Sales Copilot questions grounded in live tenant data.
 
-### 2. Lead Management & Predictive AI Scoring (`/leads`)
-- Ingest leads from webhooks, contact forms, and CSV imports.
-- Multi-factor explainable predictive scoring (0–100) analyzing role seniority, corporate domain authenticity, and interest intent.
-- One-click atomic database conversion into linked `Contact`, `Company`, and `Deal` records.
-- **Enterprise RFC 4180 CSV Data Export**: `GET /api/v1/leads/export/csv` protected by `requirePermission('LEADS', 'EXPORT')` with automated audit trail logging and one-click frontend export button.
+### 2. Lead Management, Predictive AI Scoring & Enterprise Import/Export (`/leads`)
+- **Full-Lifecycle Lead Ingestion**: Ingest leads from webhooks, contact forms, interactive UI creation, and bulk CSV / Excel spreadsheet imports.
+- **Multi-Factor Explainable AI Scoring**: Computes composite lead intelligence scores (0–100) analyzing role seniority, corporate domain authenticity, activity volume, and purchase intent.
+- **One-Click Atomic Lead Conversion**: Atomic PostgreSQL transaction converting leads into connected `Contact`, `Company`, and `Deal` records.
+- **Production-Ready Multi-Step Lead Import Wizard**:
+  - Drag-and-drop file upload supporting `.csv` and `.xlsx` up to 10MB.
+  - Automatic column mapping using intelligent alias matching across 30 standard CRM fields.
+  - Configurable duplicate detection based on normalized email and phone numbers with three execution strategies: *Skip duplicates*, *Update existing leads*, or *Import all rows*.
+  - Live pre-import validation summary and diagnostic preview highlighting valid, invalid, duplicate, and estimated records.
+  - Execution in controlled database batches with detailed failure reporting and downloadable CSV/Excel error reports.
+- **Advanced Multi-Scope Leads Export Engine**:
+  - Scopes: *Filtered Leads*, *Selected Leads* (via table checkboxes), *All Leads*, or *Date Range*.
+  - Dual format outputs: RFC 4180 CSV with UTF-8 BOM (for Excel multilingual support) and Microsoft Excel (`.xlsx`) workbooks.
+  - Configurable column selection with custom ordering.
+  - Anti-Formula Injection protection (prepending `'` to `=`, `+`, `-`, `@`, `\t`, `\r`) mitigating spreadsheet macro execution risks.
+- **Audit-Logged Import History**: Persistent tracking via `ImportJob` relational model capturing original filenames, row metrics, error diagnostics, and status lifecycle.
+
 
 ### 3. Interactive Kanban Deal Pipeline (`/deals`)
 - Visual drag-and-drop stage progression: `New` → `Qualified` → `Discovery` → `Proposal` → `Negotiation` → `Won` / `Lost`.
@@ -272,12 +285,14 @@ client/public/
 ## 9. Quality Gates & Automated Test Coverage
 
 ```
-Test Files  8 passed (8)
-     Tests  64 passed (64)
-  Duration  11.80s
+Test Files  10 passed (10)
+     Tests  90 passed (90)
+  Duration  17.26s
 ```
 
 ### Verified Test Suites:
+- `tests/lead-import-export.test.ts` (20 tests) — Complete import/export feature verification: CSV & Excel sample templates, MIME type and format parsing, intelligent column auto-mapping, required and format validation, Unicode character fidelity, duplicate detection strategies (`SKIP`, `UPDATE`, `IMPORT_ALL`), error report generation, formula injection neutralization (`=`, `+`, `-`, `@`), scopes (`ALL`, `FILTERED`, `SELECTED`, `DATE_RANGE`), tenant isolation, foreign owner rejection, and RBAC permission enforcement.
+- `tests/lead-layout.test.ts` (6 tests) — Lead creation, editing, dynamic layout configuration persistence, custom fields validation, and foreign organization owner assignment rejection.
 - `tests/phase3-modules-ai.test.ts` (10 tests) — RFC 4180 CSV exports for Leads, Contacts, and Deals with RBAC checks; inbound webhook status callbacks; anti-spam opt-out suppression; and dynamic AI meeting summarization.
 - `tests/security-phase2.test.ts` (8 tests) — Session revocation via `tokenVersion`, SHA-256 password reset flow, IDOR prevention, and cryptographic HMAC payment checks.
 - `tests/security-entitlements.test.ts` (13 tests) — Tenant isolation, public registration safety, invite privilege checks, quota enforcement, webhook replay prevention, and prompt injection defense.
@@ -286,3 +301,137 @@ Test Files  8 passed (8)
 - `tests/auth.test.ts` (3 tests) — Invalid credential rejection, JWT generation, and route protection.
 - `tests/ai.test.ts` (2 tests) — Multi-factor predictive lead scoring formulas.
 - `tests/tenant.test.ts` (1 test) — Cross-tenant boundary enforcement.
+
+---
+
+## 10. Production Lead Import & Export Subsystem Architecture
+
+### 10.1. Subsystem Workflow Overview
+
+The Lead Import & Export subsystem provides an end-to-end pipeline allowing users to bulk-ingest and export lead records with tenant isolation, duplicate detection, and security protections.
+
+```mermaid
+flowchart TD
+    subgraph Client_Wizard ["Frontend Wizard & Modals"]
+        Step1["Step 1: Upload File (.csv, .xlsx)"]
+        Step2["Step 2: Map Columns (30 Fields)"]
+        Step3["Step 3: Duplicate Strategy (Skip/Update/All)"]
+        Step4["Step 4: Default Values (Owner, Status, Source)"]
+        Step5["Step 5: Pre-Import Validation Summary"]
+        Step6["Step 6: Results & Downloadable Error Report"]
+        ExportModal["Export Modal (Scopes: Filtered, Selected, All, Date Range)"]
+    end
+
+    subgraph Server_Pipeline ["Server-Side Processing Engine"]
+        MIMEParser["Multer Buffer Validation (Max 10MB, .csv / .xlsx)"]
+        AutoMapper["High-Confidence Column Alias Matcher"]
+        Validator["Schema & Constraint Validator (Names, Emails, Revenue, Enums)"]
+        DupEngine["Duplicate Detection Engine (Normalized Email & Phone Index)"]
+        QuotaGuard["Entitlement Service Lead Quota Check"]
+        BatchWriter["Transactional Batch Processor (50 records / batch)"]
+        FormulaGuard["CSV Formula Injection Neutralizer (=, +, -, @)"]
+        AuditLogger["Audit Service (IMPORT_LEADS, EXPORT_LEADS)"]
+    end
+
+    subgraph Storage ["Database & Tracking"]
+        DBLeads["PostgreSQL Lead Records"]
+        DBJobs["PostgreSQL ImportJob Ledger"]
+    end
+
+    Step1 --> MIMEParser
+    MIMEParser --> AutoMapper
+    AutoMapper --> Step2
+    Step2 --> Step3
+    Step3 --> Step4
+    Step4 --> Validator
+    Validator --> DupEngine
+    DupEngine --> Step5
+    Step5 --> QuotaGuard
+    QuotaGuard --> BatchWriter
+    BatchWriter --> DBLeads
+    BatchWriter --> DBJobs
+    BatchWriter --> Step6
+    ExportModal --> FormulaGuard
+    FormulaGuard --> AuditLogger
+    AuditLogger --> DBLeads
+```
+
+---
+
+### 10.2. Supported CRM Fields & Aliases
+
+The system supports mapping across all 30 Lead model attributes:
+
+| Field Key | Label | Type | Required | Primary Aliases Recognized |
+|---|---|---|---|---|
+| `firstName` | First Name | `string` | **Yes** | `first name`, `firstname`, `first_name`, `fname`, `given name` |
+| `lastName` | Last Name | `string` | **Yes** | `last name`, `lastname`, `last_name`, `lname`, `surname` |
+| `company` | Company | `string` | No | `company`, `company name`, `organization`, `account`, `business` |
+| `title` | Title / Job Title | `string` | No | `title`, `job title`, `designation`, `position`, `role` |
+| `email` | Primary Email | `string` | No | `email`, `email address`, `e-mail`, `mail`, `work email` |
+| `secondaryEmail` | Secondary Email | `string` | No | `secondary email`, `alt email`, `alternate email`, `personal email` |
+| `phone` | Phone | `string` | No | `phone`, `telephone`, `phone number`, `tel`, `work phone` |
+| `mobile` | Mobile | `string` | No | `mobile`, `cell`, `mobile phone`, `cell phone`, `cellular` |
+| `fax` | Fax | `string` | No | `fax`, `facsimile`, `fax number` |
+| `website` | Website | `string` | No | `website`, `url`, `web`, `site`, `homepage`, `domain` |
+| `ownerId` | Lead Owner | `string` | No | `lead owner`, `owner`, `assigned to`, `assignee`, `sales rep` |
+| `source` | Lead Source | `enum` | No | `lead source`, `source`, `channel`, `origin`, `acquisition channel` |
+| `status` | Lead Status | `enum` | No | `lead status`, `status`, `stage`, `lead state` |
+| `priority` | Lead Priority | `enum` | No | `priority`, `lead priority`, `urgency` |
+| `industry` | Industry | `string` | No | `industry`, `sector`, `vertical`, `business category` |
+| `annualRevenue` | Annual Revenue | `number` | No | `annual revenue`, `revenue`, `turnover`, `arr` |
+| `numberOfEmployees`| Number of Employees | `number` | No | `number of employees`, `employees`, `employee count`, `team size` |
+| `rating` | Rating | `enum` | No | `rating`, `lead rating`, `tier`, `temperature` (`HOT`, `WARM`, `COLD`) |
+| `emailOptOut` | Email Opt Out | `boolean` | No | `email opt out`, `opt out`, `unsubscribed`, `do not email` |
+| `skypeId` | Skype ID | `string` | No | `skype id`, `skype`, `skype name` |
+| `twitterHandle` | Twitter Handle | `string` | No | `twitter handle`, `twitter`, `x handle`, `twitter username` |
+| `address` | Flat / House / Building | `string` | No | `address`, `flat`, `house`, `building`, `apartment`, `address line 1` |
+| `street` | Street Address | `string` | No | `street`, `street address`, `address line 2`, `road` |
+| `country` | Country / Region | `string` | No | `country`, `country / region`, `region`, `nation` |
+| `state` | State / Province | `string` | No | `state`, `state / province`, `province`, `territory` |
+| `city` | City | `string` | No | `city`, `town`, `municipality` |
+| `zipCode` | ZIP / Postal Code | `string` | No | `zip`, `zip code`, `postal code`, `postcode`, `pincode` |
+| `latitude` | Latitude | `number` | No | `latitude`, `lat` (-90 to 90) |
+| `longitude` | Longitude | `number` | No | `longitude`, `long`, `lng` (-180 to 180) |
+| `description` | Description Notes | `string` | No | `description`, `notes`, `comments`, `details`, `summary` |
+
+---
+
+### 10.3. Duplicate Detection & Resolution Engine
+
+- **Normalization**:
+  - Emails are normalized via `email.trim().toLowerCase()`.
+  - Phone numbers are normalized to E.164/digit-only formats via `phone.replace(/[^\d+]/g, '')`.
+- **Indexed Lookup**: Queries leverage PostgreSQL composite indexes (`[organizationId, email]`, `[organizationId, phone]`, `[organizationId, mobile]`) to query thousands of leads with low latency.
+- **Handling Strategies**:
+  1. **SKIP**: Leaves the existing CRM lead intact; ignores duplicate spreadsheet rows and logs them in the `skippedCount` metric.
+  2. **UPDATE**: Updates existing lead attributes with newly supplied non-empty values without touching protected or system fields.
+  3. **IMPORT_ALL**: Inserts each duplicate as an independent new record when organizational business policy permits.
+
+---
+
+### 10.4. Security Protections & Formula Injection Defense (CWE-1236)
+
+- **Formula Escaping**: Spreadsheets exported from the backend or downloaded as error reports pass through `sanitizeFormulaInjection()`. Any cell beginning with `=`, `+`, `-`, `@`, `\t`, or `\r` is escaped with a prepended single quote `'`, preventing spreadsheet viewers from executing malicious macro commands.
+- **File Input Hardening**: Enforces a 10MB file ceiling, maximum 5 worksheets, maximum 100 columns, and maximum 10,000 rows. Corrupted files or unsupported binary payloads are rejected during initial inspection.
+- **Tenant Isolation**: Every lead query, duplicate check, and import job lookup is strictly scoped to `req.organizationId`. Assigned Lead Owners must hold active `Membership` in the organization.
+- **Mass Assignment Prevention**: Only approved Lead attributes can be written; client payloads cannot specify `organizationId`, `id`, `createdAt`, or privilege roles.
+- **Subscription Quota Guard**: Prevents import execution if the organization's total lead count exceeds the subscription plan limit (`EntitlementService.checkLeadLimit`).
+- **Comprehensive Audit Trail**: Records `IMPORT_LEADS` and `EXPORT_LEADS` entries in `AuditLog` capturing user ID, client IP, user agent, record counts, and applied filters.
+
+---
+
+### 10.5. API Endpoints Reference
+
+| Method | Endpoint | Permission | Description |
+|---|---|---|---|
+| `GET` | `/api/v1/leads/import/template` | Public/Auth | Download formatted CSV or Excel sample import templates. |
+| `POST` | `/api/v1/leads/import/upload` | `LEADS:CREATE` | Multipart upload, spreadsheet inspection, and header auto-mapping. |
+| `POST` | `/api/v1/leads/import/preview` | `LEADS:CREATE` | Pre-import validation, duplicate simulation, and metric preview. |
+| `POST` | `/api/v1/leads/import/execute` | `LEADS:CREATE` | Batch execution with duplicate strategy, quota guard, and error capture. |
+| `GET` | `/api/v1/leads/import/history` | `LEADS:VIEW` | Retrieve past import job history for the active organization. |
+| `GET` | `/api/v1/leads/import/jobs/:id` | `LEADS:VIEW` | Retrieve job details, status, and failure diagnostics. |
+| `GET` | `/api/v1/leads/import/jobs/:id/error-report` | `LEADS:VIEW` | Download CSV or Excel error report containing row numbers and error reasons. |
+| `POST` | `/api/v1/leads/export` | `LEADS:EXPORT` | Advanced export supporting scopes (`ALL`, `FILTERED`, `SELECTED`, `DATE_RANGE`) and custom column subsets. |
+| `GET` | `/api/v1/leads/export/csv` | `LEADS:EXPORT` | Legacy direct CSV download respecting active query filters. |
+

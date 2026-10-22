@@ -15,6 +15,7 @@ export const SYSTEM_MODULES = [
   'WORKFLOWS',
   'AI_CENTER',
   'COMMS',
+  'TICKETS',
 ] as const;
 
 export const SYSTEM_ACTIONS = [

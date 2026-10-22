@@ -16,6 +16,9 @@ const createDealSchema = z.object({
   companyId: z.string().optional().nullable(),
   ownerId: z.string().optional().nullable(),
   expectedCloseDate: z.string().optional(),
+  forecastCategory: z.string().optional(),
+  winLossCategory: z.string().optional().nullable(),
+  winLossReason: z.string().optional().nullable(),
 });
 
 export class DealController {
@@ -133,6 +136,9 @@ export class DealController {
         companyId: parsed.companyId || null,
         ownerId: parsed.ownerId || req.user!.id,
         expectedCloseDate: parsed.expectedCloseDate ? new Date(parsed.expectedCloseDate) : null,
+        forecastCategory: parsed.forecastCategory || 'PIPELINE',
+        winLossCategory: parsed.winLossCategory || null,
+        winLossReason: parsed.winLossReason || null,
       },
       include: {
         stage: true,
@@ -179,7 +185,18 @@ export class DealController {
       return sendError(res, 'Deal not found', 404);
     }
 
-    const { stageId, status, amount, title, winLossReason, expectedCloseDate, ownerId } = req.body;
+    const {
+      stageId,
+      status,
+      amount,
+      title,
+      winLossReason,
+      winLossCategory,
+      forecastCategory,
+      expectedCloseDate,
+      actualCloseDate,
+      ownerId,
+    } = req.body;
 
     let probability = existingDeal.probability;
     let isStageTransition = false;
@@ -202,8 +219,16 @@ export class DealController {
         amount: amount !== undefined ? Number(amount) : undefined,
         title: title || undefined,
         probability,
-        winLossReason: winLossReason || undefined,
+        winLossReason: winLossReason !== undefined ? winLossReason : undefined,
+        winLossCategory: winLossCategory !== undefined ? winLossCategory : undefined,
+        forecastCategory: forecastCategory !== undefined ? forecastCategory : undefined,
         expectedCloseDate: expectedCloseDate ? new Date(expectedCloseDate) : undefined,
+        actualCloseDate:
+          actualCloseDate !== undefined
+            ? actualCloseDate ? new Date(actualCloseDate) : null
+            : status === 'WON' || status === 'LOST'
+            ? new Date()
+            : undefined,
         ownerId: ownerId !== undefined ? ownerId : undefined,
         updatedAt: new Date(),
       },
@@ -390,6 +415,175 @@ export class DealController {
       return res.status(200).send(csvContent);
     } catch (err: any) {
       return sendError(res, err.message || 'Failed to export deals', 500);
+    }
+  }
+
+  /**
+   * Lost-Deal Root Cause & Post-Mortem Analysis
+   * GET /api/deals/win-loss-analysis
+   */
+  static async getWinLossAnalysis(req: Request, res: Response) {
+    try {
+      const orgId = req.organizationId!;
+
+      const [lostDeals, wonDeals] = await Promise.all([
+        prisma.deal.findMany({
+          where: { organizationId: orgId, status: 'LOST' },
+          select: {
+            id: true,
+            title: true,
+            amount: true,
+            currency: true,
+            winLossCategory: true,
+            winLossReason: true,
+            actualCloseDate: true,
+            updatedAt: true,
+            owner: { select: { firstName: true, lastName: true } },
+          },
+        }),
+        prisma.deal.findMany({
+          where: { organizationId: orgId, status: 'WON' },
+          select: { id: true, amount: true },
+        }),
+      ]);
+
+      const totalLostCount = lostDeals.length;
+      const totalLostAmount = lostDeals.reduce((sum, d) => sum + d.amount, 0);
+      const totalWonCount = wonDeals.length;
+      const totalWonAmount = wonDeals.reduce((sum, d) => sum + d.amount, 0);
+
+      const categoryMap: Record<string, { count: number; totalAmount: number }> = {};
+      for (const deal of lostDeals) {
+        const cat = deal.winLossCategory || 'UNSPECIFIED';
+        if (!categoryMap[cat]) {
+          categoryMap[cat] = { count: 0, totalAmount: 0 };
+        }
+        categoryMap[cat].count += 1;
+        categoryMap[cat].totalAmount += deal.amount;
+      }
+
+      const categories = Object.entries(categoryMap).map(([category, stats]) => ({
+        category,
+        count: stats.count,
+        totalAmount: stats.totalAmount,
+        percentage: totalLostCount > 0 ? Math.round((stats.count / totalLostCount) * 100) : 0,
+      })).sort((a, b) => b.totalAmount - a.totalAmount);
+
+      return sendSuccess(res, {
+        summary: {
+          totalLostCount,
+          totalLostAmount,
+          totalWonCount,
+          totalWonAmount,
+          winLossRatio: totalLostCount > 0 ? ((totalWonCount / (totalWonCount + totalLostCount)) * 100).toFixed(1) : '100',
+        },
+        categories,
+        recentLostDeals: lostDeals.slice(0, 10),
+      });
+    } catch (err: any) {
+      return sendError(res, err.message || 'Failed to fetch win/loss analysis', 500);
+    }
+  }
+
+  /**
+   * Sales Targets & Quota Attainment
+   * GET /api/deals/targets
+   */
+  static async listSalesTargets(req: Request, res: Response) {
+    try {
+      const orgId = req.organizationId!;
+      const { period } = req.query;
+
+      const where: any = { organizationId: orgId };
+      if (period) {
+        where.period = String(period);
+      }
+
+      const targets = await prisma.salesTarget.findMany({
+        where,
+        include: {
+          user: { select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true } },
+        },
+        orderBy: { period: 'desc' },
+      });
+
+      // Calculate real achieved revenue for each target
+      const targetsWithAttainment = await Promise.all(
+        targets.map(async (t) => {
+          const dealWhere: any = {
+            organizationId: orgId,
+            status: 'WON',
+            updatedAt: { gte: t.startDate, lte: t.endDate },
+          };
+          if (t.userId) {
+            dealWhere.ownerId = t.userId;
+          }
+
+          const wonDeals = await prisma.deal.findMany({
+            where: dealWhere,
+            select: { amount: true },
+          });
+
+          const achievedAmount = wonDeals.reduce((sum, d) => sum + d.amount, 0);
+          const attainmentRate = t.targetAmount > 0 ? Math.round((achievedAmount / t.targetAmount) * 100) : 0;
+          const variance = achievedAmount - t.targetAmount;
+
+          return {
+            ...t,
+            achievedAmount,
+            attainmentRate,
+            variance,
+          };
+        })
+      );
+
+      return sendSuccess(res, targetsWithAttainment);
+    } catch (err: any) {
+      return sendError(res, err.message || 'Failed to list sales targets', 500);
+    }
+  }
+
+  /**
+   * Set or Update a Sales Target
+   * POST /api/deals/targets
+   */
+  static async setSalesTarget(req: Request, res: Response) {
+    try {
+      const orgId = req.organizationId!;
+      const { userId, period, targetAmount, currency = 'USD', startDate, endDate, notes } = req.body;
+
+      if (!period || !targetAmount || !startDate || !endDate) {
+        return sendError(res, 'period, targetAmount, startDate, and endDate are required', 400);
+      }
+
+      if (userId) {
+        const user = await prisma.membership.findFirst({
+          where: { organizationId: orgId, userId },
+        });
+        if (!user) {
+          return sendError(res, 'Assigned user does not belong to current organization', 400);
+        }
+      }
+
+      const target = await prisma.salesTarget.create({
+        data: {
+          organizationId: orgId,
+          userId: userId || null,
+          period,
+          targetAmount: Number(targetAmount),
+          currency,
+          startDate: new Date(startDate),
+          endDate: new Date(endDate),
+          notes: notes || null,
+        },
+        include: {
+          user: { select: { id: true, firstName: true, lastName: true, email: true } },
+        },
+      });
+
+      return sendSuccess(res, target, 'Sales target created successfully', undefined, 201);
+    } catch (err: any) {
+      return sendError(res, err.message || 'Failed to set sales target', 400);
     }
   }
 }

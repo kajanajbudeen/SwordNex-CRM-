@@ -19,6 +19,7 @@ import {
   LogOut,
   ChevronDown,
   Crown,
+  LifeBuoy,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -34,6 +35,7 @@ export const Sidebar: React.FC = () => {
     { label: 'Contacts', path: '/contacts', icon: Briefcase, module: 'CONTACTS' },
     { label: 'Companies', path: '/companies', icon: Building2, module: 'COMPANIES' },
     { label: 'Tasks & Follow-ups', path: '/tasks', icon: CheckSquare, module: 'TASKS' },
+    { label: 'Support Tickets', path: '/tickets', icon: LifeBuoy, module: 'TICKETS' },
     { label: 'Communication Hub', path: '/inbox', icon: MessageSquare, module: 'COMMS' },
     { label: 'Campaigns', path: '/campaigns', icon: Megaphone, module: 'LEADS' },
     { label: 'AI Center', path: '/ai-center', icon: Sparkles, badge: 'AI', module: 'AI_CENTER' },

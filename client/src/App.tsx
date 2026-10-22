@@ -15,6 +15,8 @@ import { DealsKanbanPage } from './pages/deals/DealsKanbanPage';
 import { ContactsPage } from './pages/contacts/ContactsPage';
 import { CompaniesPage } from './pages/companies/CompaniesPage';
 import { TasksPage } from './pages/tasks/TasksPage';
+import { TicketsPage } from './pages/tickets/TicketsPage';
+import { TicketDetailPage } from './pages/tickets/TicketDetailPage';
 import { InboxPage } from './pages/inbox/InboxPage';
 import { CampaignsPage } from './pages/campaigns/CampaignsPage';
 import { AiCenterPage } from './pages/ai-center/AiCenterPage';
@@ -120,6 +122,8 @@ export const App: React.FC = () => {
               <Route path="contacts" element={<ContactsPage />} />
               <Route path="companies" element={<CompaniesPage />} />
               <Route path="tasks" element={<TasksPage />} />
+              <Route path="tickets" element={<TicketsPage />} />
+              <Route path="tickets/:id" element={<TicketDetailPage />} />
               <Route path="inbox" element={<InboxPage />} />
               <Route path="campaigns" element={<CampaignsPage />} />
               <Route path="ai-center" element={<AiCenterPage />} />

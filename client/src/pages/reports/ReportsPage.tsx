@@ -29,22 +29,26 @@ export const ReportsPage: React.FC = () => {
   const [velocity, setVelocity] = useState<any[]>([]);
   const [leadSources, setLeadSources] = useState<any[]>([]);
   const [usageMetrics, setUsageMetrics] = useState<any>(null);
+  const [forecastTrend, setForecastTrend] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
     const fetchReports = async () => {
       try {
-        const [dashRes, velRes, srcRes, usageRes] = await Promise.all([
+        const [dashRes, velRes, srcRes, usageRes, forecastRes] = await Promise.all([
           apiClient.get('/reports/dashboard-summary'),
           apiClient.get('/reports/sales-velocity'),
           apiClient.get('/reports/lead-sources'),
           apiClient.get('/reports/usage-metrics'),
+          apiClient.get('/reports/forecasts'),
         ]);
 
         if (dashRes.success) setSummary(dashRes.data);
         if (velRes.success) setVelocity(velRes.data);
         if (srcRes.success) setLeadSources(srcRes.data);
         if (usageRes.success) setUsageMetrics(usageRes.data);
+        if (forecastRes.success) setForecastTrend(forecastRes.data || []);
       } catch (err) {
         console.error('Failed to load reports:', err);
       } finally {
@@ -57,15 +61,35 @@ export const ReportsPage: React.FC = () => {
 
   const pieColors = ['#00F0FF', '#3B82F6', '#8B5CF6', '#EC4899', '#10B981'];
 
-  // Predictive Monthly Forecast projection
-  const forecastTrend = [
-    { month: 'Jul', committed: 65000, bestCase: 85000 },
-    { month: 'Aug', committed: 95000, bestCase: 130000 },
-    { month: 'Sep', committed: 140000, bestCase: 195000 },
-    { month: 'Oct (Current)', committed: 185000, bestCase: 260000 },
-    { month: 'Nov (AI Est)', committed: 230000, bestCase: 340000 },
-    { month: 'Dec (AI Est)', committed: 290000, bestCase: 420000 },
-  ];
+  const handleExport = async () => {
+    setIsExporting(true);
+    try {
+      const token = localStorage.getItem('sn_token');
+      const orgId = localStorage.getItem('sn_org_id');
+      const res = await fetch('/api/v1/reports/export/csv', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'x-organization-id': orgId || '',
+        },
+      });
+
+      if (!res.ok) throw new Error('Failed to generate export file');
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `swordnex-crm-analytics-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err: any) {
+      alert(`Export failed: ${err.message}`);
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -75,7 +99,7 @@ export const ReportsPage: React.FC = () => {
           <h1 className="text-xl font-extrabold text-white tracking-tight flex items-center space-x-2">
             <span>Executive Analytics & Forecasts</span>
             <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
-              Q4 MODEL
+              REAL-TIME MODEL
             </span>
           </h1>
           <p className="text-xs text-slate-400 mt-0.5">
@@ -84,11 +108,12 @@ export const ReportsPage: React.FC = () => {
         </div>
 
         <button
-          onClick={() => alert('Exporting full CRM analytics report in CSV/PDF format...')}
-          className="px-3.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center space-x-1.5 transition"
+          onClick={handleExport}
+          disabled={isExporting}
+          className="px-3.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center space-x-1.5 transition disabled:opacity-50"
         >
           <Download className="w-4 h-4 text-cyan-400" />
-          <span>Export Analytics</span>
+          <span>{isExporting ? 'Generating CSV...' : 'Export Analytics (CSV)'}</span>
         </button>
       </div>
 

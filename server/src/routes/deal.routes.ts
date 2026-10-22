@@ -10,6 +10,9 @@ router.use(authenticate, resolveTenant);
 
 router.get('/pipelines', DealController.listPipelines);
 router.get('/export/csv', requirePermission('DEALS', 'EXPORT'), DealController.exportCsv);
+router.get('/win-loss-analysis', DealController.getWinLossAnalysis);
+router.get('/targets', DealController.listSalesTargets);
+router.post('/targets', DealController.setSalesTarget);
 router.get('/', DealController.listDeals);
 router.post('/', DealController.create);
 router.get('/:id', DealController.getById);
