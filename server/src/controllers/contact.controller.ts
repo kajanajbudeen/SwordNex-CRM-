@@ -74,6 +74,24 @@ export class ContactController {
   static async create(req: Request, res: Response) {
     const parsed = createContactSchema.parse(req.body);
 
+    if (parsed.companyId) {
+      const company = await prisma.company.findFirst({
+        where: { id: parsed.companyId, organizationId: req.organizationId },
+      });
+      if (!company) {
+        return sendError(res, 'Company reference not found or unauthorized for this workspace', 400);
+      }
+    }
+
+    if (parsed.ownerId) {
+      const membership = await prisma.membership.findFirst({
+        where: { userId: parsed.ownerId, organizationId: req.organizationId },
+      });
+      if (!membership) {
+        return sendError(res, 'Assigned contact owner must be a member of this workspace', 400);
+      }
+    }
+
     const contact = await prisma.contact.create({
       data: {
         organizationId: req.organizationId!,
@@ -116,9 +134,30 @@ export class ContactController {
       return sendError(res, 'Contact not found', 404);
     }
 
+    if (req.body.companyId) {
+      const company = await prisma.company.findFirst({
+        where: { id: req.body.companyId, organizationId: req.organizationId },
+      });
+      if (!company) {
+        return sendError(res, 'Company reference not found or unauthorized for this workspace', 400);
+      }
+    }
+
+    if (req.body.ownerId) {
+      const membership = await prisma.membership.findFirst({
+        where: { userId: req.body.ownerId, organizationId: req.organizationId },
+      });
+      if (!membership) {
+        return sendError(res, 'Assigned contact owner must be a member of this workspace', 400);
+      }
+    }
+
+    // Strip protected fields from update payload
+    const { id: _id, organizationId: _orgId, createdAt: _createdAt, ...updateData } = req.body;
+
     const updated = await prisma.contact.update({
       where: { id },
-      data: { ...req.body, updatedAt: new Date() },
+      data: { ...updateData, updatedAt: new Date() },
       include: {
         company: true,
         owner: { select: { id: true, firstName: true, lastName: true } },

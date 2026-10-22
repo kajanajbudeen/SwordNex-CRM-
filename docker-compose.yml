@@ -65,10 +65,10 @@ services:
       API_PREFIX: /api/v1
       CLIENT_URL: http://localhost:80
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgrespassword}@database:5432/${POSTGRES_DB:-swordnex_crm}?schema=public
-      JWT_SECRET: super_secure_production_jwt_key_32_characters_minimum
-      JWT_EXPIRES_IN: 1d
-      JWT_REFRESH_SECRET: super_secure_refresh_key_32_chars_minimum
-      JWT_REFRESH_EXPIRES_IN: 7d
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET environment variable is required}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1d}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET environment variable is required}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
       AI_PROVIDER: mock
     ports:
       - "5000:5000"

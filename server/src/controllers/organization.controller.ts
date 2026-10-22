@@ -135,9 +135,10 @@ export class OrganizationController {
     });
 
     if (!targetUser) {
-      const defaultPassword = 'SwordNexUserTempPass123!';
+      const crypto = await import('crypto');
+      const randomSecret = crypto.randomBytes(24).toString('hex') + 'Aa1!';
       const bcrypt = await import('bcryptjs');
-      const passwordHash = await bcrypt.hash(defaultPassword, 10);
+      const passwordHash = await bcrypt.hash(randomSecret, 10);
 
       targetUser = await prisma.user.create({
         data: {

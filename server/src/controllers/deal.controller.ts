@@ -116,11 +116,50 @@ export class DealController {
   static async create(req: Request, res: Response) {
     const parsed = createDealSchema.parse(req.body);
 
-    const stage = await prisma.pipelineStage.findUnique({
-      where: { id: parsed.stageId },
+    // Verify pipeline belongs to this organization
+    const pipeline = await prisma.pipeline.findFirst({
+      where: { id: parsed.pipelineId, organizationId: req.organizationId },
     });
+    if (!pipeline) {
+      return sendError(res, 'Pipeline not found or unauthorized for this workspace', 400);
+    }
 
-    const probability = stage ? stage.winProbability : 20;
+    // Verify stage belongs to this pipeline
+    const stage = await prisma.pipelineStage.findFirst({
+      where: { id: parsed.stageId, pipelineId: pipeline.id },
+    });
+    if (!stage) {
+      return sendError(res, 'Pipeline stage not found for the specified pipeline', 400);
+    }
+
+    if (parsed.companyId) {
+      const company = await prisma.company.findFirst({
+        where: { id: parsed.companyId, organizationId: req.organizationId },
+      });
+      if (!company) {
+        return sendError(res, 'Company reference not found or unauthorized for this workspace', 400);
+      }
+    }
+
+    if (parsed.contactId) {
+      const contact = await prisma.contact.findFirst({
+        where: { id: parsed.contactId, organizationId: req.organizationId },
+      });
+      if (!contact) {
+        return sendError(res, 'Contact reference not found or unauthorized for this workspace', 400);
+      }
+    }
+
+    if (parsed.ownerId) {
+      const membership = await prisma.membership.findFirst({
+        where: { userId: parsed.ownerId, organizationId: req.organizationId },
+      });
+      if (!membership) {
+        return sendError(res, 'Assigned deal owner must be a member of this workspace', 400);
+      }
+    }
+
+    const probability = stage.winProbability;
 
     const deal = await prisma.deal.create({
       data: {
@@ -202,13 +241,25 @@ export class DealController {
     let isStageTransition = false;
     let newStageName = '';
 
-    if (stageId && stageId !== existingDeal.stageId) {
-      isStageTransition = true;
-      const targetStage = await prisma.pipelineStage.findUnique({ where: { id: stageId } });
-      if (targetStage) {
-        probability = targetStage.winProbability;
-        newStageName = targetStage.name;
+    if (ownerId) {
+      const membership = await prisma.membership.findFirst({
+        where: { userId: ownerId, organizationId: req.organizationId },
+      });
+      if (!membership) {
+        return sendError(res, 'Assigned deal owner must be a member of this workspace', 400);
       }
+    }
+
+    if (stageId && stageId !== existingDeal.stageId) {
+      const targetStage = await prisma.pipelineStage.findFirst({
+        where: { id: stageId, pipelineId: existingDeal.pipelineId },
+      });
+      if (!targetStage) {
+        return sendError(res, 'Target stage does not belong to the deal pipeline', 400);
+      }
+      isStageTransition = true;
+      probability = targetStage.winProbability;
+      newStageName = targetStage.name;
     }
 
     const updated = await prisma.deal.update({

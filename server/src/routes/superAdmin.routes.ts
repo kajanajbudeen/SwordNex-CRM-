@@ -2,11 +2,12 @@ import { Router } from 'express';
 import { SuperAdminController } from '../controllers/superAdmin.controller';
 import { authenticate } from '../middleware/auth.middleware';
 import { requireSuperAdmin } from '../middleware/superAdmin.middleware';
+import { authLimiter } from '../middleware/rateLimiter.middleware';
 
 const router = Router();
 
 // Public Master Auth Route
-router.post('/auth/login', SuperAdminController.login);
+router.post('/auth/login', authLimiter, SuperAdminController.login);
 
 // Protected Master Routes (Requires authenticated SUPER_ADMIN)
 router.use(authenticate);

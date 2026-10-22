@@ -45,6 +45,7 @@ export class SuperAdminController {
           userId: user.id,
           email: user.email,
           globalRole: user.globalRole,
+          tokenVersion: user.tokenVersion,
           isSuperAdmin: true,
         },
         config.jwt.secret,

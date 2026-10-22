@@ -3,11 +3,12 @@ import { CommsController } from '../controllers/comms.controller';
 import { authenticate } from '../middleware/auth.middleware';
 import { resolveTenant } from '../middleware/tenant.middleware';
 import { requireActiveSubscription } from '../middleware/subscription.middleware';
+import { webhookLimiter } from '../middleware/rateLimiter.middleware';
 
 const router = Router();
 
 // Public provider webhook callback (Twilio, WhatsApp, Sendgrid)
-router.post('/webhook/:provider', CommsController.handleInboundWebhook);
+router.post('/webhook/:provider', webhookLimiter, CommsController.handleInboundWebhook);
 
 router.use(authenticate, resolveTenant, requireActiveSubscription);
 

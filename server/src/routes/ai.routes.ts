@@ -2,10 +2,12 @@ import { Router } from 'express';
 import { AiController } from '../controllers/ai.controller';
 import { authenticate } from '../middleware/auth.middleware';
 import { resolveTenant } from '../middleware/tenant.middleware';
+import { aiLimiter } from '../middleware/rateLimiter.middleware';
+import { requireRoles } from '../middleware/rbac.middleware';
 
 const router = Router();
 
-router.use(authenticate, resolveTenant);
+router.use(authenticate, resolveTenant, aiLimiter);
 
 router.post('/copilot', AiController.askCopilot);
 router.post('/lead-score', AiController.scoreLead);
@@ -17,6 +19,6 @@ router.post('/deal-health', AiController.evaluateDealHealth);
 router.post('/search', AiController.naturalLanguageSearch);
 router.post('/agent-run', AiController.triggerAgentRun);
 router.get('/agent-runs', AiController.listAgentRuns);
-router.post('/agent-runs/:id/approve', AiController.approveAgentRun);
+router.post('/agent-runs/:id/approve', requireRoles(['ADMIN']), AiController.approveAgentRun);
 
 export default router;

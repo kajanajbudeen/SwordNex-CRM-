@@ -59,6 +59,34 @@ export class TaskController {
   static async create(req: Request, res: Response) {
     const parsed = createTaskSchema.parse(req.body);
 
+    if (parsed.leadId) {
+      const lead = await prisma.lead.findFirst({
+        where: { id: parsed.leadId, organizationId: req.organizationId },
+      });
+      if (!lead) return sendError(res, 'Lead reference not found or unauthorized for this workspace', 400);
+    }
+
+    if (parsed.contactId) {
+      const contact = await prisma.contact.findFirst({
+        where: { id: parsed.contactId, organizationId: req.organizationId },
+      });
+      if (!contact) return sendError(res, 'Contact reference not found or unauthorized for this workspace', 400);
+    }
+
+    if (parsed.dealId) {
+      const deal = await prisma.deal.findFirst({
+        where: { id: parsed.dealId, organizationId: req.organizationId },
+      });
+      if (!deal) return sendError(res, 'Deal reference not found or unauthorized for this workspace', 400);
+    }
+
+    if (parsed.assignedToId) {
+      const membership = await prisma.membership.findFirst({
+        where: { userId: parsed.assignedToId, organizationId: req.organizationId },
+      });
+      if (!membership) return sendError(res, 'Assigned user must be a member of this workspace', 400);
+    }
+
     const task = await prisma.task.create({
       data: {
         organizationId: req.organizationId!,

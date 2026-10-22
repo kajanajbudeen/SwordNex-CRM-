@@ -208,6 +208,18 @@ export class QuoteController {
         if (!deal) return sendError(res, 'Invalid deal reference', 400);
       }
 
+      // Verify product references belong to this organization if supplied
+      for (const item of data.items) {
+        if (item.productId) {
+          const product = await prisma.product.findFirst({
+            where: { id: item.productId, organizationId: orgId },
+          });
+          if (!product) {
+            return sendError(res, `Product reference '${item.productId}' not found or unauthorized for this workspace`, 400);
+          }
+        }
+      }
+
       // Generate sequential quote number
       const count = await prisma.quote.count({ where: { organizationId: orgId } });
       const quoteNumber = `QUO-${(count + 1001).toString().padStart(4, '0')}`;

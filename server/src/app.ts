@@ -41,9 +41,20 @@ export const createApp = (): Application => {
 
   // Security Middleware
   app.use(helmet());
+  const allowedOrigins = [
+    config.clientUrl,
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+  ].filter(Boolean);
+
   app.use(
     cors({
-      origin: [config.clientUrl, 'http://localhost:5173', 'http://127.0.0.1:5173', '*'],
+      origin: (origin, callback) => {
+        if (!origin || allowedOrigins.includes(origin) || (config.nodeEnv !== 'production' && origin.startsWith('http://localhost:'))) {
+          return callback(null, true);
+        }
+        return callback(new Error('Cross-Origin Request Blocked by SwordNex CORS Policy'));
+      },
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization', 'x-organization-id', 'x-razorpay-signature'],
@@ -60,8 +71,15 @@ export const createApp = (): Application => {
   });
   app.use('/api', limiter);
 
-  // Body Parsing
-  app.use(express.json({ limit: '10mb' }));
+  // Body Parsing with rawBody preservation for webhooks
+  app.use(
+    express.json({
+      limit: '10mb',
+      verify: (req: any, _res, buf) => {
+        req.rawBody = buf;
+      },
+    })
+  );
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
   // Static File Uploads

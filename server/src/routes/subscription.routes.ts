@@ -3,11 +3,12 @@ import { SubscriptionController } from '../controllers/subscription.controller';
 import { authenticate } from '../middleware/auth.middleware';
 import { resolveTenant } from '../middleware/tenant.middleware';
 import { requireRoles } from '../middleware/rbac.middleware';
+import { webhookLimiter } from '../middleware/rateLimiter.middleware';
 
 const router = Router();
 
 // Public / Unauthenticated webhook endpoint (Razorpay / Cashfree)
-router.post('/webhook', SubscriptionController.handleWebhook);
+router.post('/webhook', webhookLimiter, SubscriptionController.handleWebhook);
 
 // Public / Tenant plan listing (available at /api/v1/plans and /api/v1/subscriptions/plans)
 router.get('/', SubscriptionController.getPlans);

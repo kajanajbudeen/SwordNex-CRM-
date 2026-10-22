@@ -8,7 +8,7 @@
 > **API Base URL:** `http://localhost:5000/api/v1`  
 > **Frontend URL:** `http://localhost:5173`  
 > **Master HQ Portal:** `http://localhost:5173/swordnex-master/login`  
-> **Quality Gate Status:** 116 / 116 Automated Tests Passing (100% Pass Rate across 12 Test Files)  
+> **Quality Gate Status:** 125 / 125 Automated Tests Passing (100% Pass Rate across 13 Test Files)  
 
 ---
 
@@ -313,12 +313,13 @@ client/public/
 ## 9. Quality Gates & Automated Test Coverage
 
 ```
-Test Files  12 passed (12)
-     Tests  116 passed (116)
-  Duration  18.70s
+Test Files  13 passed (13)
+     Tests  125 passed (125)
+  Duration  15.28s
 ```
 
 ### Verified Test Suites:
+- `tests/production-readiness-remediation.test.ts` (9 tests) — Security & Production Readiness verification: Refresh token session revocation, SuperAdmin tokenVersion stamping, elimination of hardcoded default invite passwords, cross-tenant relational IDOR protections (Contact, Deal, Task, Quote, CustomerInvoice), and idempotent webhook event deduplication.
 - `tests/tickets-sales-phase1.test.ts` (14 tests) — Complete verification of Customer Support tickets (creation, status update, priority, multi-channel tagging, internal comments, AI response drafting) and Sales Performance (monthly targets, win/loss categorization, My Day cockpit agenda, and database-backed revenue forecasts).
 - `tests/commercial-cpq-finance.test.ts` (12 tests) — Complete verification of CPQ Product Catalog (SKU, unit pricing, tax rates), Quotations (multi-item calculations, discounts, taxes), 1-click conversions to Sales Orders and Customer Invoices, Accounts Receivable aging summaries (0-30, 31-60, 61-90, 90+ days), and payment recordings with automatic balance adjustments.
 - `tests/lead-import-export.test.ts` (20 tests) — Complete import/export feature verification: CSV & Excel sample templates, MIME type and format parsing, intelligent column auto-mapping, required and format validation, Unicode character fidelity, duplicate detection strategies (`SKIP`, `UPDATE`, `IMPORT_ALL`), error report generation, formula injection neutralization (`=`, `+`, `-`, `@`), scopes (`ALL`, `FILTERED`, `SELECTED`, `DATE_RANGE`), tenant isolation, foreign owner rejection, and RBAC permission enforcement.

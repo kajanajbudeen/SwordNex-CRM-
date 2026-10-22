@@ -133,6 +133,27 @@ export class CommsController {
   static async createConversation(req: Request, res: Response) {
     const parsed = createConversationSchema.parse(req.body);
 
+    if (parsed.leadId) {
+      const lead = await prisma.lead.findFirst({ where: { id: parsed.leadId, organizationId: req.organizationId } });
+      if (!lead) return sendError(res, 'Lead reference not found or unauthorized for this workspace', 400);
+    }
+    if (parsed.contactId) {
+      const contact = await prisma.contact.findFirst({ where: { id: parsed.contactId, organizationId: req.organizationId } });
+      if (!contact) return sendError(res, 'Contact reference not found or unauthorized for this workspace', 400);
+    }
+
+    // Check if external integration is configured
+    const integration = await prisma.integration.findFirst({
+      where: {
+        organizationId: req.organizationId!,
+        provider: parsed.channel === 'WHATSAPP' ? 'WHATSAPP' : parsed.channel === 'SMS' ? 'TWILIO_SMS' : 'EMAIL_SMTP',
+        isEnabled: true,
+      },
+    });
+
+    const messageStatus = integration ? 'SENT' : 'FAILED';
+    const failureReason = integration ? null : `No active ${parsed.channel} provider integration configured in settings. Message recorded locally in audit queue.`;
+
     const conversation = await prisma.conversation.create({
       data: {
         organizationId: req.organizationId!,
@@ -150,7 +171,8 @@ export class CommsController {
         senderType: 'AGENT',
         senderId: req.user!.id,
         body: parsed.initialMessage,
-        status: 'SENT',
+        status: messageStatus,
+        failureReason,
       },
     });
 

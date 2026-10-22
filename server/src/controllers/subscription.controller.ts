@@ -203,7 +203,9 @@ export class SubscriptionController {
           .update(`${orderId}|${paymentId}`)
           .digest('hex');
 
-        if (expectedSignature !== signature) {
+        const expectedBuf = Buffer.from(expectedSignature, 'utf8');
+        const sigBuf = Buffer.from(signature, 'utf8');
+        if (expectedBuf.length !== sigBuf.length || !crypto.timingSafeEqual(expectedBuf, sigBuf)) {
           return sendError(res, 'Cryptographic payment signature verification failed.', 400);
         }
       }
@@ -490,13 +492,23 @@ export class SubscriptionController {
       const webhookSignature = req.headers['x-razorpay-signature'] as string;
       const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
 
-      if (secret && webhookSignature) {
+      if (process.env.NODE_ENV === 'production' && !secret) {
+        return res.status(500).json({ error: 'RAZORPAY_WEBHOOK_SECRET is unconfigured in production' });
+      }
+
+      if (secret) {
+        if (!webhookSignature) {
+          return res.status(400).json({ status: 'invalid_signature', error: 'Missing x-razorpay-signature' });
+        }
+        const rawPayload = (req as any).rawBody || Buffer.from(JSON.stringify(req.body));
         const expectedSignature = crypto
           .createHmac('sha256', secret)
-          .update(JSON.stringify(req.body))
+          .update(rawPayload)
           .digest('hex');
 
-        if (expectedSignature !== webhookSignature) {
+        const expectedBuf = Buffer.from(expectedSignature, 'utf8');
+        const sigBuf = Buffer.from(webhookSignature, 'utf8');
+        if (expectedBuf.length !== sigBuf.length || !crypto.timingSafeEqual(expectedBuf, sigBuf)) {
           return res.status(400).json({ status: 'invalid_signature' });
         }
       }
@@ -523,6 +535,29 @@ export class SubscriptionController {
           status: 'PROCESSED',
         },
       });
+
+      // Automated reconciliation for payment.captured or order.paid
+      if (event.event === 'payment.captured' || event.event === 'order.paid') {
+        const paymentEntity = event.payload?.payment?.entity || event.payload?.payment || {};
+        const orderId = paymentEntity.order_id || event.order_id;
+        const paymentId = paymentEntity.id || event.payment_id;
+
+        if (orderId) {
+          const pendingPayment = await prisma.payment.findFirst({
+            where: { orderId, status: { not: 'SUCCESS' } },
+          });
+
+          if (pendingPayment) {
+            await prisma.payment.update({
+              where: { id: pendingPayment.id },
+              data: {
+                paymentId: paymentId || pendingPayment.paymentId,
+                status: 'SUCCESS',
+              },
+            });
+          }
+        }
+      }
 
       return res.status(200).json({ status: 'processed', eventId });
     } catch (err: any) {

@@ -438,6 +438,11 @@ export class AuthController {
         return sendError(res, 'User account is deactivated or no longer exists', 401);
       }
 
+      // Session revocation validation
+      if (payload.tokenVersion !== undefined && payload.tokenVersion !== user.tokenVersion) {
+        return sendError(res, 'Refresh token has been revoked or invalidated. Please sign in again.', 401);
+      }
+
       const newAccessToken = generateAccessToken({
         userId: user.id,
         email: user.email,

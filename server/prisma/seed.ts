@@ -4,6 +4,11 @@ import bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
+  if (process.env.NODE_ENV === 'production' && !process.env.ALLOW_PRODUCTION_SEED) {
+    console.error('⛔ Refusing to seed database in production environment without explicit ALLOW_PRODUCTION_SEED=true flag.');
+    process.exit(1);
+  }
+
   console.log('🌱 Starting SwordNex AI CRM database seeding...');
 
   // Clean existing data for clean seed

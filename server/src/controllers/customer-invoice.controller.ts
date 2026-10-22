@@ -237,6 +237,34 @@ export class CustomerInvoiceController {
       const userId = req.user!.id;
       const data = createCustomerInvoiceSchema.parse(req.body);
 
+      // Verify relational references belong to tenant workspace
+      if (data.contactId) {
+        const contact = await prisma.contact.findFirst({ where: { id: data.contactId, organizationId: orgId } });
+        if (!contact) return sendError(res, 'Invalid contact reference for current workspace', 400);
+      }
+      if (data.companyId) {
+        const company = await prisma.company.findFirst({ where: { id: data.companyId, organizationId: orgId } });
+        if (!company) return sendError(res, 'Invalid company reference for current workspace', 400);
+      }
+      if (data.dealId) {
+        const deal = await prisma.deal.findFirst({ where: { id: data.dealId, organizationId: orgId } });
+        if (!deal) return sendError(res, 'Invalid deal reference for current workspace', 400);
+      }
+      if (data.quoteId) {
+        const quote = await prisma.quote.findFirst({ where: { id: data.quoteId, organizationId: orgId } });
+        if (!quote) return sendError(res, 'Invalid quote reference for current workspace', 400);
+      }
+      if (data.salesOrderId) {
+        const order = await prisma.salesOrder.findFirst({ where: { id: data.salesOrderId, organizationId: orgId } });
+        if (!order) return sendError(res, 'Invalid sales order reference for current workspace', 400);
+      }
+      for (const item of data.items) {
+        if (item.productId) {
+          const product = await prisma.product.findFirst({ where: { id: item.productId, organizationId: orgId } });
+          if (!product) return sendError(res, `Invalid product reference '${item.productId}' for current workspace`, 400);
+        }
+      }
+
       // Generate sequential invoice number
       const count = await prisma.customerInvoice.count({ where: { organizationId: orgId } });
       const invoiceNumber = `INV-${(count + 1001).toString().padStart(4, '0')}`;
