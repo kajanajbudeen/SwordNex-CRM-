@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Lock, Mail, Building, User, ArrowRight } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
+import { PasswordInput } from '../../components/common/PasswordInput';
+
 export const RegisterPage: React.FC = () => {
   const [formData, setFormData] = useState({
     firstName: '',
@@ -10,6 +12,7 @@ export const RegisterPage: React.FC = () => {
     email: '',
     organizationName: '',
     password: '',
+    confirmPassword: '',
   });
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -23,10 +26,22 @@ export const RegisterPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    if (formData.password.length < 8) {
+      setError('Password must be at least 8 characters long.');
+      return;
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      setError('Passwords do not match. Please verify your confirmation password.');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
-      await register(formData);
+      const { confirmPassword, ...registerPayload } = formData;
+      await register(registerPayload);
       navigate('/dashboard');
     } catch (err: any) {
       setError(err.message || 'Registration failed. Please verify your details.');
@@ -118,19 +133,28 @@ export const RegisterPage: React.FC = () => {
 
             <div>
               <label className="block text-xs font-medium text-slate-300 mb-1">Password (min 8 chars)</label>
-              <div className="relative">
-                <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
-                <input
-                  type="password"
-                  required
-                  minLength={8}
-                  name="password"
-                  value={formData.password}
-                  onChange={handleChange}
-                  placeholder="••••••••"
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-xs text-slate-100 outline-none"
-                />
-              </div>
+              <PasswordInput
+                required
+                minLength={8}
+                name="password"
+                value={formData.password}
+                onChange={handleChange}
+                placeholder="Enter workspace password"
+                autoComplete="new-password"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-300 mb-1">Confirm Password</label>
+              <PasswordInput
+                required
+                minLength={8}
+                name="confirmPassword"
+                value={formData.confirmPassword}
+                onChange={handleChange}
+                placeholder="Re-enter workspace password"
+                autoComplete="new-password"
+              />
             </div>
 
             <button

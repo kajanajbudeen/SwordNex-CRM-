@@ -6,6 +6,7 @@ import { prisma } from '../utils/prisma';
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../utils/jwt';
 import { sendSuccess, sendError } from '../utils/response';
 import { AuditService } from '../services/audit.service';
+import { EmailService } from '../services/email.service';
 
 const registerSchema = z.object({
   email: z.string().email(),
@@ -518,6 +519,17 @@ export class AuthController {
           passwordResetExpiresAt: expiresAt,
         },
       });
+
+      // Dispatch password reset email via authenticated SMTP service
+      try {
+        await EmailService.sendPasswordResetEmail({
+          to: user.email,
+          resetToken: rawToken,
+          firstName: user.firstName,
+        });
+      } catch (emailErr: any) {
+        console.error('[AuthController.forgotPassword] Failed to dispatch reset email:', emailErr.message);
+      }
 
       return sendSuccess(
         res,

@@ -133,46 +133,82 @@ npm run dev             # Runs backend server and frontend client concurrently
 
 ## 5. Running Automated Tests
 
-Run the complete 33-test automated unit, integration, and security test suite:
+Run the complete 138-test automated unit, integration, and security test suite:
 ```bash
 npm run test
 ```
 
 ### Test Suite Execution Summary (100% Passing):
 ```
- ✓ tests/ai.test.ts (2 tests)
- ✓ tests/auth.test.ts (3 tests)
- ✓ tests/subscription-engine.test.ts (12 tests)
+ ✓ tests/production-deployment-verification.test.ts (13 tests)
+ ✓ tests/tickets-sales-phase1.test.ts (14 tests)
+ ✓ tests/lead-import-export.test.ts (20 tests)
+ ✓ tests/security-entitlements.test.ts (13 tests)
+ ✓ tests/phase3-modules-ai.test.ts (10 tests)
+ ✓ tests/commercial-cpq-finance.test.ts (12 tests)
  ✓ tests/rbac-subscription.test.ts (15 tests)
+ ✓ tests/security-phase2.test.ts (8 tests)
+ ✓ tests/production-readiness-remediation.test.ts (9 tests)
+ ✓ tests/ai.test.ts (2 tests)
+ ✓ tests/lead-layout.test.ts (6 tests)
+ ✓ tests/subscription-engine.test.ts (12 tests)
+ ✓ tests/auth.test.ts (3 tests)
  ✓ tests/tenant.test.ts (1 test)
 
- Test Files  5 passed (5)
-      Tests  33 passed (33)
-   Duration  7.59s
+ Test Files  14 passed (14)
+      Tests  138 passed (138)
 ```
 
 Test coverage includes:
-- **JWT & Auth**: Token signing, role validation, invalid credentials, and CSRF protection.
-- **Tenant Isolation**: Multi-tenancy boundary guard, preventing cross-tenant data leaks.
+- **JWT & Auth Lifecycle**: HS256 algorithm pinning, separate access/refresh keys, session revocation via `tokenVersion`, and token isolation.
+- **Tenant Isolation & Multi-Tenancy Boundaries**: Strict server-enforced `organizationId` scoping, relational IDOR protections across contacts, companies, deals, tasks, quotes, and customer invoices.
 - **Dynamic RBAC**: Module permissions (`VIEW`, `CREATE`, `EDIT`, `DELETE`, `APPROVE`, `EXPORT`, `ASSIGN`, `MANAGE`).
-- **Subscription Engine**: 15-day trial arithmetic, 3-day grace period enforcement, instant upgrade proration, zero-data-loss scheduled downgrade, Razorpay HMAC signature validation, duplicate payment rejection (`HTTP 409`), and 18% GST invoice generation.
-- **AI Gateway & Scoring**: Multi-factor explainable predictive scoring (0–100) and Deal Health risk detection.
+- **SaaS Subscription & Invoicing Engine**: 15-day trial arithmetic, 3-day grace period enforcement, instant upgrade proration, zero-data-loss scheduled downgrade, Razorpay HMAC SHA-256 signature validation, duplicate payment rejection (`HTTP 409`), and automated 18% GST invoice generation.
+- **Razorpay Live Payments & Asynchronous Webhooks**: Timing-safe verification, raw buffer validation (`req.rawBody`), idempotent deduplication (`PaymentWebhookEvent`), and automated reconciliation for `payment.captured`, `order.paid`, and `payment.failed`.
+- **Password Reset & SMTP Recovery**: 32-byte cryptographic reset tokens, SHA-256 hashed database storage, 1-hour expiration, single-use destruction, and constant-time anti-enumeration public responses.
+- **AI Gateway & Predictive Scoring**: Multi-factor explainable predictive scoring (0–100) and Deal Health risk detection.
 
 ---
 
 ## 6. Project Documentation Index
 
-Comprehensive documentation is organized under the [`docs/`](docs/) directory:
+Comprehensive documentation is available at root and in the [`docs/`](docs/) directory:
 
-- 📘 [System Master Documentation](docs/system-master-documentation.md): Comprehensive system specification, architecture, role matrix, subscription rules, data models, and verification.
-- 📡 [REST API Reference](docs/api-reference.md): Detailed endpoint inventory for all 14 API modules with parameters and status codes.
+- 🚀 [Production Deployment Guide](PRODUCTION_DEPLOYMENT.md) ([docs/PRODUCTION_DEPLOYMENT.md](docs/PRODUCTION_DEPLOYMENT.md)): Complete Ubuntu Linux 22.04/24.04 LTS deployment, Host Nginx SSL termination, Certbot, firewall rules, and container orchestration.
+- 🛡️ [Production Security Audit & Hardening Checklist](PRODUCTION_SECURITY_CHECKLIST.md) ([docs/PRODUCTION_SECURITY_CHECKLIST.md](docs/PRODUCTION_SECURITY_CHECKLIST.md)): Control-by-control security verification matrix.
+- 💾 [PostgreSQL 16 PITR Recovery Guide](POSTGRES_PITR_RECOVERY.md) ([docs/POSTGRES_PITR_RECOVERY.md](docs/POSTGRES_PITR_RECOVERY.md)): Continuous WAL archiving, physical base backups (`pg_basebackup -X stream`), and Point-in-Time Recovery runbook (RPO $\le$ 5 min, RTO $\le$ 15 min).
+- 📋 [Production Operations Runbook](PRODUCTION_RUNBOOK.md) ([docs/PRODUCTION_RUNBOOK.md](docs/PRODUCTION_RUNBOOK.md)): Health inspection, zero-downtime rolling deploys, secret rotation protocol, demo account purging, and incident response.
+- 📘 [Overall System Master Documentation](docs/overall-system-documentation.md): Comprehensive system specification, architecture diagrams, role matrix, and subscription rules.
+- 📡 [REST API Reference](docs/api-reference.md): Detailed endpoint inventory for all API modules with parameters and status codes.
 - 🏛️ [Decoupled 3-Tier Architecture Guide](docs/decoupled-architecture.md): Independent build, deploy, environment, and scaling topology for Frontend, Backend, and Database.
 
-## 7. Docker Deployment
+---
 
-Deploy the complete multi-container stack (PostgreSQL + API Server + Nginx Frontend):
+## 7. Docker Production & Development Deployment
+
+### Production Deployment (Hardened 3-Tier Stack)
+Deploy with Docker secrets, private database network isolation, non-root user execution, and WAL archiving:
+
 ```bash
-docker-compose up -d --build
+# 1. Generate local cryptographic secrets in ./secrets/ (mode 0600)
+chmod +x scripts/generate-secrets.sh
+./scripts/generate-secrets.sh
+
+# 2. Configure production .env (domain, Razorpay Key ID, SMTP settings)
+cp .env.example .env
+
+# 3. Build and launch production containers
+docker compose -f docker-compose.prod.yml build --no-cache
+docker compose -f docker-compose.prod.yml up -d
+
+# 4. Verify container health
+docker compose -f docker-compose.prod.yml ps
+curl -I http://127.0.0.1:5000/health
+```
+
+### Local Development Multi-Container Deployment
+```bash
+docker compose up -d --build
 ```
 - Client accessible on: `http://localhost:80`
 - API Server accessible on: `http://localhost:5000/api/v1`

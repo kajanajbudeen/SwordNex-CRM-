@@ -39,10 +39,14 @@ import { resolveTenant } from './middleware/tenant.middleware';
 export const createApp = (): Application => {
   const app = express();
 
+  // Trust Proxy configuration for reverse proxy (Nginx / Cloudflare)
+  app.set('trust proxy', config.trustedProxy);
+
   // Security Middleware
   app.use(helmet());
   const allowedOrigins = [
     config.clientUrl,
+    ...config.corsAllowedOrigins,
     'http://localhost:5173',
     'http://127.0.0.1:5173',
   ].filter(Boolean);

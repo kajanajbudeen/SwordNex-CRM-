@@ -1,8 +1,8 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
 import { prisma } from '../utils/prisma';
 import { config } from '../config';
+import { generateAccessToken } from '../utils/jwt';
 import { sendSuccess, sendError } from '../utils/response';
 
 export class SuperAdminController {
@@ -40,17 +40,13 @@ export class SuperAdminController {
         return sendError(res, 'Invalid Master Administrator credentials', 401);
       }
 
-      const token = jwt.sign(
-        {
-          userId: user.id,
-          email: user.email,
-          globalRole: user.globalRole,
-          tokenVersion: user.tokenVersion,
-          isSuperAdmin: true,
-        },
-        config.jwt.secret,
-        { expiresIn: '1d' }
-      );
+      const token = generateAccessToken({
+        userId: user.id,
+        email: user.email,
+        globalRole: user.globalRole,
+        tokenVersion: user.tokenVersion,
+        isSuperAdmin: true,
+      });
 
       // Audit log the master login
       await prisma.auditLog.create({

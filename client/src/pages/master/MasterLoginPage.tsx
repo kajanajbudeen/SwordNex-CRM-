@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShieldCheck, Lock, Mail, AlertTriangle, ArrowRight, Sparkles, Building2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { PasswordInput } from '../../components/common/PasswordInput';
 
 export const MasterLoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -105,17 +106,16 @@ export const MasterLoginPage: React.FC = () => {
               <label className="block text-xs font-mono font-medium text-slate-300 mb-1.5 uppercase tracking-wider">
                 Security Password
               </label>
-              <div className="relative">
-                <Lock className="w-4 h-4 text-purple-400 absolute left-3.5 top-3" />
-                <input
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••••••"
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-white text-xs font-mono placeholder:text-slate-600 focus:outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400 transition"
-                />
-              </div>
+              <PasswordInput
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter master security password"
+                autoComplete="current-password"
+                leftIcon={<Lock className="w-4 h-4 text-purple-400" />}
+                className="bg-slate-950/80 border-slate-800 text-white font-mono focus:border-purple-400 focus:ring-purple-400 rounded-xl py-2.5"
+                iconClassName="text-purple-400/80 hover:text-purple-300"
+              />
             </div>
 
             <button
@@ -130,16 +130,15 @@ export const MasterLoginPage: React.FC = () => {
 
           {/* Quick Demo Fill */}
           <div className="mt-6 pt-4 border-t border-slate-800 flex items-center justify-between">
-            <span className="text-[11px] text-slate-500 font-mono">Demo Master Admin:</span>
+            <span className="text-[11px] text-slate-500 font-mono">Master Admin Identity:</span>
             <button
               type="button"
               onClick={() => {
                 setEmail('admin@swordnex.com');
-                setPassword('SwordNex2026!');
               }}
               className="text-[11px] text-purple-400 hover:text-purple-300 font-mono underline"
             >
-              Fill Credentials
+              Fill admin@swordnex.com
             </button>
           </div>
         </div>

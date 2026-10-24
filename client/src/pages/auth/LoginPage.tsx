@@ -2,10 +2,11 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Lock, Mail, ArrowRight, ShieldCheck, Sparkles } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { PasswordInput } from '../../components/common/PasswordInput';
 
 export const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('admin@swordnex.com');
-  const [password, setPassword] = useState('SwordNex2026!');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { login } = useAuth();
@@ -79,18 +80,22 @@ export const LoginPage: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">Password</label>
-              <div className="relative">
-                <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
-                <input
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full bg-slate-900/90 border border-slate-700 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 rounded-lg pl-9 pr-3 py-2 text-xs text-slate-100 outline-none transition"
-                />
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-medium text-slate-300">Password</label>
+                <Link
+                  to="/forgot-password"
+                  className="text-[11px] text-cyan-400 hover:text-cyan-300 hover:underline transition"
+                >
+                  Forgot password?
+                </Link>
               </div>
+              <PasswordInput
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter your workspace password"
+                autoComplete="current-password"
+              />
             </div>
 
             <button

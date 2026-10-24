@@ -4,11 +4,11 @@
 > **Product:** SwordNex AI CRM (Intelligent Enterprise Multi-Tenant Cloud CRM)  
 > **Tagline:** *Understand Customers. Predict Opportunities. Accelerate Growth.*  
 > **Release Version:** 1.0.0 Production Architecture  
-> **System Topology:** Decoupled 3-Tier Multi-Tenant SaaS (React 18 + Node.js 18 + PostgreSQL 16)  
+> **System Topology:** Decoupled 3-Tier Multi-Tenant SaaS (React 18 + Node.js 20 LTS + PostgreSQL 16)  
 > **API Base URL:** `http://localhost:5000/api/v1`  
-> **Frontend URL:** `http://localhost:5173`  
+> **Frontend URL:** `http://localhost:5173` (Dev) / `http://127.0.0.1:8080` (Internal Prod)  
 > **Master HQ Portal:** `http://localhost:5173/swordnex-master/login`  
-> **Quality Gate Status:** 125 / 125 Automated Tests Passing (100% Pass Rate across 13 Test Files)  
+> **Quality Gate Status:** 138 / 138 Automated Tests Passing (100% Pass Rate across 14 Test Files)  
 
 ---
 
@@ -550,4 +550,43 @@ Accounts Receivable is computed directly from active unpaid database invoices (`
 | `GET` | `/api/v1/customer-invoices/aging-summary` | Real-time Accounts Receivable aging buckets (0-30, 31-60, 61-90, 90+) |
 | `GET` | `/api/v1/customer-invoices/:id` | Invoice details with line items and customer payment ledger |
 | `POST` | `/api/v1/customer-invoices/:id/payments` | Record customer payment, recalculating paid and due balances |
+
+---
+
+## 13. Production Architecture, Security Hardening & Disaster Recovery
+
+### 13.1. Production Container Topology & Network Isolation
+The production environment is orchestrated via [docker-compose.prod.yml](file:///e:/SNCRM/docker-compose.prod.yml):
+- **Host Edge Nginx (Port 80 / 443)**: SSL termination with TLS 1.2/1.3, HSTS (`max-age=31536000`), OCSP stapling, 15MB request limits, and automated HTTP-to-HTTPS 301 redirection. Proxies root traffic to client SPA on `127.0.0.1:8080` and `/api/`, `/uploads/`, and `/health` directly to `127.0.0.1:5000`.
+- **Client Container (`swordnex_prod_frontend`)**: Runs pinned `nginx:1.27-alpine` serving the compiled SPA on private loopback `127.0.0.1:8080`.
+- **Backend API Container (`swordnex_prod_backend`)**: Multi-stage `node:20-alpine` running as unprivileged non-root user `node` (UID 1000) on private loopback `127.0.0.1:5000`.
+- **Dedicated Migration Container (`swordnex_prod_migration`)**: Init container executing `npx prisma migrate deploy` applying [server/prisma/migrations/0_init/migration.sql](file:///e:/SNCRM/server/prisma/migrations/0_init/migration.sql) exactly once before API boot, eliminating concurrent migration race conditions.
+- **Database Container (`swordnex_prod_database`)**: `postgres:16-alpine` on private internal bridge network `crm_db_network` (`internal: true`). Port 5432 has zero public internet exposure.
+
+### 13.2. Docker Secrets Management & Fail-Fast Startup Validation
+- Sensitive values (`db_password`, `database_url`, `jwt_secret`, `jwt_refresh_secret`, `razorpay_key_secret`, `razorpay_webhook_secret`, `smtp_password`) are mounted as read-only Docker secret files in `/run/secrets/`.
+- The `readSecret` helper in [server/src/config/index.ts](file:///e:/SNCRM/server/src/config/index.ts) loads from `/run/secrets/*` or fallback environment variables.
+- Startup validation `validateConfig()` aborts process boot immediately (`process.exit(1)`) in production if `JWT_SECRET` or `JWT_REFRESH_SECRET` are default strings or under 32 characters, or if access and refresh keys are identical.
+
+### 13.3. PostgreSQL 16 WAL Archiving & Point-in-Time Recovery (PITR)
+- **Continuous WAL Archiving**: Configured in [database/postgresql.conf](file:///e:/SNCRM/database/postgresql.conf) with `wal_level = replica`, `archive_mode = on`, and `archive_timeout = 300` (forcing WAL segment switches every 5 minutes to guarantee RPO $\le$ 5 minutes).
+- **Automated Base Backups**: Executed via [database/scripts/backup-base.sh](file:///e:/SNCRM/database/scripts/backup-base.sh) invoking `pg_basebackup -Ft -z -X stream` with automated SHA-256 integrity checksum verification.
+- **Point-in-Time Recovery**: [database/scripts/restore-pitr.sh](file:///e:/SNCRM/database/scripts/restore-pitr.sh) reconstructs database state to a specific historical second from base backup and replayed WAL segments with `recovery_target_action = 'promote'`.
+
+### 13.4. Razorpay Live Payment Webhooks & Asynchronous Reconciliation
+- Supports live merchant credentials (`RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`).
+- Verifies HMAC SHA-256 signatures against raw request byte buffer (`req.rawBody`) using timing-safe comparison (`crypto.timingSafeEqual`).
+- Webhook events are idempotently tracked in `PaymentWebhookEvent`. Duplicates return `200 { status: 'duplicate_ignored' }`.
+- Automatically reconciles `payment.captured` / `order.paid` by generating tax invoices and activating subscriptions even if client browser sessions are interrupted, and marks failed transactions upon `payment.failed`.
+
+### 13.5. Authenticated SMTP & Cryptographic Password Recovery
+- Pooled `nodemailer` transport supports TLS 1.2+ over port 587 (STARTTLS) or port 465 (SMTPS) with verified sender identity.
+- Password reset tokens use 32-byte cryptographic random hex strings, stored exclusively as SHA-256 hashes with 1-hour expiration.
+- Single-use enforcement increments `User.tokenVersion`, invalidating active sessions.
+- Public `/forgot-password` endpoint returns uniform responses to prevent user account enumeration.
+
+### 13.6. Verification & Automated Quality Gate
+- Comprehensive test coverage across **14 test suites and 138 passing tests** (100% pass rate).
+- Validates multi-tenant boundaries, RBAC permissions, CPQ workflows, session revocation, subscription limits, and payment security.
+
 

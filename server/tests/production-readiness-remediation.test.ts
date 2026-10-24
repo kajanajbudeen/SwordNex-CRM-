@@ -86,16 +86,20 @@ describe('Production Readiness Audit & Remediation Verification Suite', () => {
 
   describe('1. Authentication & Session Revocation Remediation', () => {
     it('should strictly reject refresh token after user session revocation (tokenVersion incremented)', async () => {
-      // Login as user to get fresh refresh token
-      const loginRes = await request(app)
-        .post('/api/v1/auth/login')
+      // Register dedicated user to test session revocation without invalidating shared seed accounts
+      const dedicatedEmail = `revocation.audit.${Date.now()}@swordnex.com`;
+      const regRes = await request(app)
+        .post('/api/v1/auth/register')
         .send({
-          email: 'alex.rep@swordnex.com',
+          email: dedicatedEmail,
           password: 'SwordNex2026!',
+          firstName: 'Revocation',
+          lastName: 'Tester',
+          organizationName: `Revocation Org ${Date.now()}`,
         });
-      expect(loginRes.status).toBe(200);
-      const userRefreshToken = loginRes.body.data.refreshToken;
-      const userToken = loginRes.body.data.token;
+      expect(regRes.status).toBe(201);
+      const userRefreshToken = regRes.body.data.refreshToken;
+      const userToken = regRes.body.data.token;
 
       // User performs logout which increments tokenVersion
       const logoutRes = await request(app)

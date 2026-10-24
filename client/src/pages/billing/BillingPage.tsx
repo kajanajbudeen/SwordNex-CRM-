@@ -145,15 +145,101 @@ export const BillingPage: React.FC = () => {
     }
   };
 
-  const handleSimulatePayment = async () => {
+  const loadRazorpayScript = (): Promise<boolean> => {
+    return new Promise((resolve) => {
+      if ((window as any).Razorpay) {
+        resolve(true);
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.async = true;
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
+
+  const handleProceedPayment = async () => {
     if (!checkoutOrder || !selectedPlan) return;
     setIsProcessingPayment(true);
     setPaymentError(null);
 
+    const keyId = checkoutOrder.razorpayKeyId;
+    const isMockKey = !keyId || keyId.includes('mock') || keyId.includes('swordnex_test');
+
+    // If key is present, invoke standard Razorpay Checkout
+    if (!isMockKey) {
+      const isLoaded = await loadRazorpayScript();
+      if (isLoaded && (window as any).Razorpay) {
+        try {
+          const options = {
+            key: keyId,
+            amount: Math.round((checkoutOrder.totalPayable || (checkoutOrder.amount * 1.18)) * 100),
+            currency: checkoutOrder.currency || 'INR',
+            name: 'SwordNex AI CRM',
+            description: `${selectedPlan.name} Subscription (${billingInterval})`,
+            order_id: checkoutOrder.orderId?.startsWith('order_') ? checkoutOrder.orderId : undefined,
+            handler: async (response: any) => {
+              setIsProcessingPayment(true);
+              try {
+                const res = await apiClient.post('/subscriptions/verify', {
+                  orderId: response.razorpay_order_id || checkoutOrder.orderId,
+                  paymentId: response.razorpay_payment_id,
+                  signature: response.razorpay_signature,
+                  planSlug: selectedPlan.slug,
+                  billingInterval,
+                  paymentRecordId: checkoutOrder.paymentRecordId,
+                });
+
+                if (res.success && res.data) {
+                  setPaymentSuccess(res.data);
+                  await refreshProfile();
+                  await fetchBillingData();
+                } else {
+                  setPaymentError(res.message || 'Payment verification failed');
+                }
+              } catch (verifyErr: any) {
+                setPaymentError(verifyErr.response?.data?.message || verifyErr.message || 'Payment verification failed');
+              } finally {
+                setIsProcessingPayment(false);
+              }
+            },
+            prefill: {
+              name: currentOrg?.name || '',
+            },
+            notes: {
+              organizationId: currentOrg?.id || '',
+              planSlug: selectedPlan.slug,
+              billingInterval,
+            },
+            theme: {
+              color: '#06B6D4',
+            },
+            modal: {
+              ondismiss: () => {
+                setIsProcessingPayment(false);
+              },
+            },
+          };
+
+          const rzpInstance = new (window as any).Razorpay(options);
+          rzpInstance.on('payment.failed', function (failResp: any) {
+            setPaymentError(failResp.error?.description || 'Payment was declined or failed.');
+            setIsProcessingPayment(false);
+          });
+          rzpInstance.open();
+          return;
+        } catch (err: any) {
+          console.error('Razorpay popup error:', err);
+        }
+      }
+    }
+
+    // Sandbox / Test fallback verification
     try {
-      // Mock payment verification with simulated Razorpay response
       const mockPaymentId = `pay_snx_${Date.now()}`;
-      const mockSignature = `sig_mock_${checkoutOrder.orderId}_${mockPaymentId}`;
+      const mockSignature = `sig_test_${Date.now()}`;
 
       const res = await apiClient.post('/subscriptions/verify', {
         orderId: checkoutOrder.orderId,
@@ -161,6 +247,7 @@ export const BillingPage: React.FC = () => {
         signature: mockSignature,
         planSlug: selectedPlan.slug,
         billingInterval,
+        paymentRecordId: checkoutOrder.paymentRecordId,
       });
 
       if (res.success && res.data) {
@@ -171,7 +258,7 @@ export const BillingPage: React.FC = () => {
         setPaymentError(res.message || 'Payment verification failed');
       }
     } catch (err: any) {
-      setPaymentError(err.message || 'Payment failed');
+      setPaymentError(err.response?.data?.message || err.message || 'Payment failed');
     } finally {
       setIsProcessingPayment(false);
     }
@@ -731,13 +818,18 @@ export const BillingPage: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="p-3 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex items-center space-x-2 text-xs text-cyan-300">
-                    <ShieldCheck className="w-4 h-4 flex-shrink-0" />
-                    <span>256-Bit SSL Encrypted Razorpay Gateway • Instant Activation</span>
+                  <div className="p-3 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-between text-xs text-cyan-300">
+                    <div className="flex items-center space-x-2">
+                      <ShieldCheck className="w-4 h-4 flex-shrink-0" />
+                      <span>256-Bit SSL Encrypted Razorpay Gateway • Instant Activation</span>
+                    </div>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-200 border border-cyan-500/30">
+                      {checkoutOrder?.razorpayKeyId?.startsWith('rzp_live') ? 'LIVE GATEWAY' : 'SECURE TEST GATEWAY'}
+                    </span>
                   </div>
 
                   <button
-                    onClick={handleSimulatePayment}
+                    onClick={handleProceedPayment}
                     disabled={isProcessingPayment || !checkoutOrder}
                     className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black text-xs transition flex items-center justify-center space-x-2 shadow-lg disabled:opacity-50"
                   >
@@ -754,7 +846,7 @@ export const BillingPage: React.FC = () => {
                           {(
                             (checkoutOrder?.amount || 0) + Math.round((checkoutOrder?.amount || 0) * 0.18)
                           ).toLocaleString('en-IN')}{' '}
-                          & Activate
+                          with Razorpay
                         </span>
                       </>
                     )}

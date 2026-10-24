@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Plug, CheckCircle2, AlertCircle, RefreshCw, Settings, ShieldCheck, Mail, MessageSquare, Phone, Calendar, Webhook } from 'lucide-react';
 import { apiClient } from '../../api/client';
+import { PasswordInput } from '../../components/common/PasswordInput';
 
 export const IntegrationsPage: React.FC = () => {
   const [integrations, setIntegrations] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedIntegration, setSelectedIntegration] = useState<any | null>(null);
+  const [apiKey, setApiKey] = useState('');
 
   const fetchIntegrations = async () => {
     setIsLoading(true);
@@ -152,10 +154,12 @@ export const IntegrationsPage: React.FC = () => {
 
               <div>
                 <label className="block text-slate-300 mb-1">API Key / Token (Server-Side Enforced)</label>
-                <input
-                  type="password"
-                  placeholder="••••••••••••••••••••••••"
-                  className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-slate-100 font-mono"
+                <PasswordInput
+                  id="integration-api-key"
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  placeholder="Paste private integration key..."
+                  className="font-mono text-xs"
                 />
               </div>
 

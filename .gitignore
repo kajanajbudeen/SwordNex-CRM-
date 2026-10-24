@@ -41,3 +41,22 @@ Thumbs.db
 # Prisma
 dev.db
 dev.db-journal
+
+# Production Secrets & Credentials
+secrets/
+*.env.production
+*.env.*.local
+*.pem
+*.key
+*.crt
+
+# Database Backups & WAL Archives
+wal_archive/
+backups/
+database/backups/
+database/wal_archive/
+
+# Runtime Uploads
+uploads/
+server/uploads/
+

@@ -7,6 +7,8 @@ import { AppLayout } from './components/layout/AppLayout';
 // Pages
 import { LoginPage } from './pages/auth/LoginPage';
 import { RegisterPage } from './pages/auth/RegisterPage';
+import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
+import { ResetPasswordPage } from './pages/auth/ResetPasswordPage';
 import { DashboardPage } from './pages/dashboard/DashboardPage';
 import { LeadsPage } from './pages/leads/LeadsPage';
 import { LeadDetailPage } from './pages/leads/LeadDetailPage';
@@ -106,6 +108,8 @@ export const App: React.FC = () => {
             {/* Public Auth Routes */}
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
 
             {/* Protected CRM App Shell */}
             <Route
