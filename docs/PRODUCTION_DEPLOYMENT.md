@@ -2,7 +2,7 @@
 
 **Target Environment:** Linux (Ubuntu 22.04 / 24.04 LTS or Debian 12) / Docker Compose / Host Nginx / PostgreSQL 16  
 **Architecture:** 3-Tier Multi-Container Topology (Isolated Database, REST API Server, Client SPA)  
-**Security Standard:** Strict Least-Privilege, Non-Root Containers, Private Network Isolation, Cryptographic Timing-Safe Checks
+**Security Standard:** Strict Least-Privilege, Non-Root Containers, Private Network Isolation, Cryptographic Timing-Safe Checks  
 
 ---
 
@@ -13,10 +13,10 @@
                                     │
                                     ▼
        ┌─────────────────────────────────────────────────────────────┐
-       │             Host Nginx Reverse Proxy (SSL Termination)      │
-       │    - Let's Encrypt / Certbot TLS v1.2 / TLS v1.3             │
-       │    - Security Headers (HSTS, CSP, X-Frame-Options)          │
-       │    - client_max_body_size 15M (CSV Imports & Attachments)   │
+       │                Host Reverse Proxy (Nginx)                   │
+       │  - Let's Encrypt TLS Termination (Certbot)                  │
+       │  - Security Headers (HSTS, CSP, XSS, Sniff)                 │
+       │  - Rate Limiting & 15MB Request Body Buffer                 │
        └──────────────┬──────────────────────────────┬───────────────┘
                       │                              │
          Proxy to 127.0.0.1:8080        Proxy /api & /uploads to 127.0.0.1:5000
@@ -61,9 +61,9 @@ Ensure public access is restricted strictly to SSH, HTTP, and HTTPS. Never open 
 # Allow SSH, HTTP, and HTTPS only
 sudo ufw default deny incoming
 sudo ufw default allow outgoing
-sudo ufw allow 22/tcp
-sudo ufw allow 80/tcp
-sudo ufw allow 443/tcp
+sudo ufw allow 22/tcp comment 'SSH'
+sudo ufw allow 80/tcp comment 'HTTP Let’s Encrypt verification'
+sudo ufw allow 443/tcp comment 'HTTPS Production Traffic'
 
 # Explicitly ensure internal ports are blocked from public interface
 sudo ufw deny 5432/tcp
@@ -80,8 +80,8 @@ sudo ufw status verbose
 
 ### Step 1: Clone Repository
 ```bash
-git clone https://github.com/kajanajbudeen/SwordNex-CRM-.git /opt/swordnex-crm
-cd /opt/swordnex-crm
+git clone https://github.com/SwordNex/SwordNex-AI-CRM.git /var/www/swordnex-crm
+cd /var/www/swordnex-crm
 ```
 
 ### Step 2: Generate Cryptographic Production Secrets
@@ -152,14 +152,15 @@ sudo cp nginx/swordnex-crm.conf /etc/nginx/sites-available/swordnex-crm.conf
 sudo sed -i 's/crm.yourdomain.com/crm.yourdomain.com/g' /etc/nginx/sites-available/swordnex-crm.conf
 
 # Enable site and test configuration
-sudo ln -s /etc/nginx/sites-available/swordnex-crm.conf /etc/nginx/sites-enabled/
+sudo ln -sf /etc/nginx/sites-available/swordnex-crm.conf /etc/nginx/sites-enabled/
+sudo rm -f /etc/nginx/sites-enabled/default
 sudo nginx -t
 sudo systemctl restart nginx
 sudo systemctl enable nginx
 ```
 
 ### Step 7: Build and Launch Production Docker Containers
-Use `docker-compose.prod.yml` to orchestrate the migration container, database, backend API, and frontend client:
+Use `docker-compose.prod.yml` to orchestrate the database, migration container, backend API, and frontend client:
 
 ```bash
 # Build production images
@@ -170,7 +171,7 @@ docker compose -f docker-compose.prod.yml up -d
 ```
 
 ### Step 8: Verify Startup & Healthchecks
-Monitor the migration container execution and check container health:
+Monitor container status and check endpoint health:
 
 ```bash
 # Check status of all containers
@@ -186,7 +187,7 @@ docker compose -f docker-compose.prod.yml ps
 curl -I http://127.0.0.1:5000/health
 # HTTP/1.1 200 OK
 # Content-Type: application/json; charset=utf-8
-# {"status":"ok","timestamp":"...","uptime":...}
+# {"status":"healthy","app":"SwordNex AI CRM Server",...}
 ```
 
 ---

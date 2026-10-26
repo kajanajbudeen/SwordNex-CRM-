@@ -82,7 +82,7 @@ SwordNex AI CRM is built as a **strictly decoupled 3-tier system**:
 2. **Backend Server Tier (`server/`)**: Express + TypeScript REST API microservice (`/api/v1`) with AI Gateway.
 3. **Frontend Client Tier (`client/`)**: React 18 + Vite + Tailwind CSS Single Page Application.
 
-For in-depth architectural diagrams and deployment models, read [docs/decoupled-architecture.md](docs/decoupled-architecture.md).
+For in-depth architectural diagrams and deployment models, read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ### Independent Tier Commands
 
@@ -133,30 +133,31 @@ npm run dev             # Runs backend server and frontend client concurrently
 
 ## 5. Running Automated Tests
 
-Run the complete 138-test automated unit, integration, and security test suite:
+Run the complete 155-test automated unit, integration, and security test suite:
 ```bash
 npm run test
 ```
 
 ### Test Suite Execution Summary (100% Passing):
 ```
+ ✓ tests/lead-import-export.test.ts (20 tests)
+ ✓ tests/security-razorpay-password.test.ts (17 tests)
  ✓ tests/production-deployment-verification.test.ts (13 tests)
  ✓ tests/tickets-sales-phase1.test.ts (14 tests)
- ✓ tests/lead-import-export.test.ts (20 tests)
  ✓ tests/security-entitlements.test.ts (13 tests)
- ✓ tests/phase3-modules-ai.test.ts (10 tests)
  ✓ tests/commercial-cpq-finance.test.ts (12 tests)
+ ✓ tests/phase3-modules-ai.test.ts (10 tests)
  ✓ tests/rbac-subscription.test.ts (15 tests)
- ✓ tests/security-phase2.test.ts (8 tests)
  ✓ tests/production-readiness-remediation.test.ts (9 tests)
- ✓ tests/ai.test.ts (2 tests)
+ ✓ tests/security-phase2.test.ts (8 tests)
  ✓ tests/lead-layout.test.ts (6 tests)
  ✓ tests/subscription-engine.test.ts (12 tests)
+ ✓ tests/ai.test.ts (2 tests)
  ✓ tests/auth.test.ts (3 tests)
  ✓ tests/tenant.test.ts (1 test)
 
- Test Files  14 passed (14)
-      Tests  138 passed (138)
+ Test Files  15 passed (15)
+      Tests  155 passed (155)
 ```
 
 Test coverage includes:
@@ -172,15 +173,21 @@ Test coverage includes:
 
 ## 6. Project Documentation Index
 
-Comprehensive documentation is available at root and in the [`docs/`](docs/) directory:
+### Core System Documentation
+- 📘 [Overall Master System Documentation](docs/OVERALL_SYSTEM_DOCUMENTATION.md): Comprehensive system specification, architecture diagrams, role matrix, and complete module capabilities.
+- 🏛️ [System Architecture Guide](docs/ARCHITECTURE.md): Decoupled 3-tier enterprise architecture, platform vs. tenant boundaries, and dynamic RBAC matrix.
+- 📡 [REST API Reference](docs/API.md): Verified endpoint inventory for authentication, tenant CRM, lead import/export, AI, payments, and master portal.
+- 🚀 [Production Deployment Guide](docs/PRODUCTION_DEPLOYMENT.md) / [Operations Guide](docs/DEPLOYMENT.md): Ubuntu Linux deployment, Docker Compose network topology, host Nginx SSL reverse proxy, and operational runbook.
+- 🛡️ [Security Architecture & Hardening Guide](docs/SECURITY.md): Enterprise security controls, timing-safe checks, double-secret JWT, rate limiting, and password reset token security.
+- 💾 [Database Architecture & PITR Runbook](docs/DATABASE.md): PostgreSQL 16 schema, Prisma migrations & seeding, WAL archiving, and Point-in-Time Recovery procedures.
 
-- 🚀 [Production Deployment Guide](PRODUCTION_DEPLOYMENT.md) ([docs/PRODUCTION_DEPLOYMENT.md](docs/PRODUCTION_DEPLOYMENT.md)): Complete Ubuntu Linux 22.04/24.04 LTS deployment, Host Nginx SSL termination, Certbot, firewall rules, and container orchestration.
-- 🛡️ [Production Security Audit & Hardening Checklist](PRODUCTION_SECURITY_CHECKLIST.md) ([docs/PRODUCTION_SECURITY_CHECKLIST.md](docs/PRODUCTION_SECURITY_CHECKLIST.md)): Control-by-control security verification matrix.
-- 💾 [PostgreSQL 16 PITR Recovery Guide](POSTGRES_PITR_RECOVERY.md) ([docs/POSTGRES_PITR_RECOVERY.md](docs/POSTGRES_PITR_RECOVERY.md)): Continuous WAL archiving, physical base backups (`pg_basebackup -X stream`), and Point-in-Time Recovery runbook (RPO $\le$ 5 min, RTO $\le$ 15 min).
-- 📋 [Production Operations Runbook](PRODUCTION_RUNBOOK.md) ([docs/PRODUCTION_RUNBOOK.md](docs/PRODUCTION_RUNBOOK.md)): Health inspection, zero-downtime rolling deploys, secret rotation protocol, demo account purging, and incident response.
-- 📘 [Overall System Master Documentation](docs/overall-system-documentation.md): Comprehensive system specification, architecture diagrams, role matrix, and subscription rules.
-- 📡 [REST API Reference](docs/api-reference.md): Detailed endpoint inventory for all API modules with parameters and status codes.
-- 🏛️ [Decoupled 3-Tier Architecture Guide](docs/decoupled-architecture.md): Independent build, deploy, environment, and scaling topology for Frontend, Backend, and Database.
+### Strategic Audit, Benchmark & Roadmap Reports
+- 🔍 [Comprehensive Codebase Audit](docs/CODEBASE_AUDIT.md): Complete module inventory, source files, database models, and real implementation status.
+- 📊 [Competitor Benchmark Report](docs/COMPETITOR_BENCHMARK.md): Code-level feature parity analysis against Zoho CRM, HubSpot Sales Hub, and Salesforce Sales Cloud.
+- 🎯 [Feature Gap Analysis](docs/FEATURE_GAP_ANALYSIS.md): Evidence-based 7-tier reality classification tracing frontend, API, database, and automated tests.
+- 🗺️ [Prioritized Product Roadmap](docs/PRODUCT_ROADMAP.md): P0 through P3 strategic roadmap with acceptance criteria, complexity, and migration risks.
+- 🔒 [Production Readiness & Security Audit](docs/PRODUCTION_READINESS.md): Review of cross-tenant authorization, JWT lifecycle, backup runbooks, and container hardening.
+- ⚙️ [Architectural Recommendations](docs/ARCHITECTURE_RECOMMENDATIONS.md): Scalability blueprint for high-concurrency workloads, BullMQ job queues, and distributed Redis caching.
 
 ---
 
